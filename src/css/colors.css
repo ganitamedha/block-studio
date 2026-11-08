@@ -1,52 +1,81 @@
-$ui-primary: hsla(166, 76%, 97%, 1); /* #F0FDFA */
-$ui-secondary: hsla(168, 100%, 95%, 1); /* #E6FFFA */
-$ui-tertiary: hsla(167, 85%, 89%, 1); /* #CCFBF1 */
+/* ==========================================================================
+   COMPLETE CUSTOM STUDIO COLOR SYSTEM (src/css/colors.css)
+   Child-friendly Teal, Sky Blue & Warm Coral Palette (No Pure Black)
+   ========================================================================== */
 
-$ui-modal-overlay: hsla(215, 100%, 65%, 0.9); /* 90% transparent version of motion-primary */
+/* Workspace & Panel Backgrounds */
+$ui-primary: #F0FDFA; /* Soft Mint Cream - Main workspace background */
+$ui-secondary: #E6FFFA; /* Light Aqua - Sprite info & lower panel background */
+$ui-tertiary: #99F6E4; /* Soft Teal - Borders, dividers & tab outlines */
 
-$ui-white: hsla(0, 100%, 100%, 1); /* #FFFFFF */
-$ui-white-dim: hsla(0, 100%, 100%, 0.75); /* 25% transparent version of ui-white */
-$ui-white-transparent: hsla(0, 100%, 100%, 0.25); /* 25% transparent version of ui-white */
-$ui-transparent: hsla(0, 100%, 100%, 0); /* 25% transparent version of ui-white */
+/* Modal & Popup Overlays */
+$ui-modal-overlay: rgba(13, 148, 136, 0.82); /* Teal translucent modal backdrop */
 
-$ui-black-transparent: hsla(0, 0%, 0%, 0.15); /* 15% transparent version of black */
-$ui-black-transparent-10: hsla(0, 0%, 0%, 0.10); /* 10% transparent version of black */
+/* White & Neutral Transparency Scales */
+$ui-white: #FFFFFF;
+$ui-white-dim: rgba(255, 255, 255, 0.85);
+$ui-white-transparent: rgba(255, 255, 255, 0.25);
+$ui-transparent: rgba(255, 255, 255, 0);
 
-$ui-green: hsla(163, 85%, 35%, 1); /* #0DA57A */
-$ui-green-2: hsla(163, 85%, 40%, 1); /* #0FBD8C */
+/* Soft Slate Shadows & Borders (Replaces harsh black) */
+$ui-black-transparent: rgba(30, 41, 59, 0.14);
 
-$text-primary: hsla(217, 33%, 17%, 1); /* #1E293B */
-$text-primary-transparent: hsla(225, 15%, 40%, 0.75);
+/* Typography & Icon Text Colors (Deep Navy Slate instead of Black) */
+$text-primary: #1E293B;
+$text-primary-transparent: rgba(30, 41, 59, 0.72);
 
-$motion-primary: hsla(200, 98%, 39%, 1); /* #0284C7 */
-$motion-tertiary: hsla(201, 96%, 32%, 1); /* #0369A1 */
+/* Primary Interactive Color (Active Tabs, Selected Sprite Border, Primary Buttons) */
+$motion-primary: #0284C7; /* Bright Sky Blue */
+$motion-tertiary: #0369A1; /* Deep Ocean Blue */
+$motion-transparent: rgba(2, 132, 199, 0.35);
+$motion-light-transparent: rgba(2, 132, 199, 0.15);
 
-$looks-secondary: hsla(174, 84%, 32%, 1); /* #0D9488 */
-$looks-transparent: hsla(175, 84%, 32%, 0.35); /* 35% transparent version of looks-tertiary */
-$looks-light-transparent: hsla(175, 84%, 32%, 0.15); /* 15% transparent version of looks-tertiary */
-$looks-secondary-dark: 	hsla(175, 77%, 26%, 1); /* #0F766E */
+/* Top Menu Bar, Library Header & Highlight Accent Colors */
+$looks-secondary: #0D9488; /* Vibrant Teal */
+$looks-transparent: rgba(13, 148, 136, 0.35);
+$looks-light-transparent: rgba(13, 148, 136, 0.15);
+$looks-secondary-dark: #0F766E; /* Deep Teal */
 
-$red-primary: hsla(20, 100%, 55%, 1); /* #FF661A */
-$red-tertiary: hsla(20, 100%, 45%, 1); /* #E64D00 */
+/* Menu Bar Dedicated Variables */
+$menu-bar-background: #0D9488;
+$menu-bar-background-image: none;
+$menu-bar-foreground: #FFFFFF;
+$menu-bar-bottom-border: #0F766E;
+$menu-bar-hover: rgba(255, 255, 255, 0.2);
 
-$sound-primary: hsla(300, 53%, 60%, 1); /* #CF63CF */
-$sound-tertiary: hsla(300, 48%, 50%, 1); /* #BD42BD */
+/* Alerts, Stop Sign & Record Accent */
+$red-primary: #F43F5E; /* Vibrant Rose Coral */
+$red-tertiary: #E11D48;
 
-$control-primary: hsla(38, 100%, 55%, 1); /* #FFAB19 */
+/* Sound Editor & Audio Accents */
+$sound-primary: #8B5CF6; /* Playful Violet */
+$sound-tertiary: #6D28D9;
 
-$data-primary: hsla(30, 100%, 55%, 1); /* #FF8C1A */
+/* Control & Event Accents */
+$control-primary: #F59E0B; /* Warm Amber */
 
-$pen-primary: hsla(163, 85%, 40%, 1); /* #0FBD8C */
-$pen-transparent: hsla(163, 85%, 40%, 0.25); /* #0FBD8C */
-$pen-tertiary: hsla(163, 86%, 30%, 1); /* #0B8E69 */
+/* Data, Variables & Alert Badges */
+$data-primary: #F97316; /* Bright Tangerine Coral */
 
-$error-primary: hsla(30, 100%, 55%, 1); /* #FF8C1A */
-$error-light: hsla(30, 100%, 70%, 1); /* #FFB366 */
-$error-transparent: hsla(30, 100%, 55%, 0.25); /* #FF8C1A */
+/* Pen, Add Extension Button & Floating Action Buttons */
+$pen-primary: #0D9488; /* Vibrant Teal */
+$pen-transparent: rgba(13, 148, 136, 0.25);
+$pen-tertiary: #0F766E;
 
-$extensions-primary: hsla(163, 85%, 40%, 1); /* #0FBD8C */
-$extensions-tertiary: hsla(163, 85%, 30%, 1); /* #0B8E69 */
-$extensions-transparent: hsla(163, 85%, 40%, 0.35); /* 35% transparent version of extensions-primary */
-$extensions-light: hsla(163, 57%, 85%, 1); /* opaque version of extensions-transparent, on white bg */
+/* Warnings & Error Prompts */
+$error-primary: #F97316;
+$error-light: #FFEDD5;
+$error-transparent: rgba(249, 115, 22, 0.25);
 
-$drop-highlight: hsla(215, 100%, 77%, 1); /* lighter than motion-primary */
+/* Extensions Library & Badges */
+$extensions-primary: #10B981; /* Emerald Green */
+$extensions-tertiary: #059669;
+$extensions-transparent: rgba(16, 185, 129, 0.35);
+$extensions-light: #D1FAE5;
+
+/* Drag-and-Drop Glow Highlight */
+$drop-highlight: #38BDF8; /* Sky Glow */
+
+/* Badges & Progress Bars */
+$badge-primary: #E0F2FE;
+$badge-border: #38BDF8;
