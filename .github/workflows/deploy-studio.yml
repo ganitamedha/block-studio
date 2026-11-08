@@ -39,89 +39,22 @@ jobs:
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
 
-      - name: Apply Storage Fix & Self-Heal CSS Variables
+      - name: Self-Heal Source Files & Fix Subfolder Asset Loading
         run: |
-          # 1. Prepend original Scratch base variables so PostCSS never fails on an undefined $variable
+          # 1. Restore official src/lib/storage.js so native {ScratchStorage} loads the page cleanly
+          curl -sL https://raw.githubusercontent.com/scratchfoundation/scratch-gui/develop/src/lib/storage.js > src/lib/storage.js
+
+          # 2. Prepend official Scratch base CSS variables so PostCSS never fails on missing $variables
           curl -sL https://raw.githubusercontent.com/scratchfoundation/scratch-gui/develop/src/css/colors.css > /tmp/base_colors.css
           cat src/css/colors.css > /tmp/custom_colors.css
           cat /tmp/base_colors.css /tmp/custom_colors.css > src/css/colors.css
 
-          # 2. Keep src/playground/index.css minimal for Webpack CSS-Modules
+          # 3. Keep src/playground/index.css clean for Webpack CSS-Modules
           printf "html,\nbody {\n    height: 100%%;\n    margin: 0;\n    background-color: #F0FDFA;\n}\n" > src/playground/index.css
 
-          # 3. Unpack scratch-storage@2.3.1 directly without modifying package-lock tree
-          npm pack scratch-storage@2.3.1
-          mkdir -p /tmp/ss231
-          tar -xzf scratch-storage-2.3.1.tgz -C /tmp/ss231
-          rm -rf node_modules/scratch-storage/*
-          cp -r /tmp/ss231/package/* node_modules/scratch-storage/
-
-          # 4. Ensure src/lib/storage.js uses the default import for scratch-storage@2.3.1
-          cat << 'EOF' > src/lib/storage.js
-          import ScratchStorage from 'scratch-storage';
-          import defaultProject from './default-project';
-          const PROJECT_SERVER = 'https://projects.scratch.mit.edu';
-          const ASSET_SERVER = 'https://assets.scratch.mit.edu';
-          class Storage extends ScratchStorage {
-              constructor () {
-                  super();
-                  this.cacheDefaultProject();
-              }
-              addOfficialScratchWebStores () {
-                  this.addWebStore(
-                      [this.AssetType.Project],
-                      projectAsset => {
-                          const [projectId, revision] = projectAsset.assetId.split('.');
-                          return revision ?
-                              `${PROJECT_SERVER}/${projectId}?rev=${revision}` :
-                              `${PROJECT_SERVER}/${projectId}`;
-                      },
-                       () => null,
-                      () => null
-                  );
-                  this.addWebStore(
-                      [this.AssetType.ImageVector, this.AssetType.ImageBitmap, this.AssetType.Sound],
-                      asset => `${ASSET_SERVER}/internalapi/asset/${asset.assetId}.${asset.dataFormat}/get/`
-                  );
-                  this.addWebStore(
-                      [this.AssetType.Sound],
-                      asset => `static/extension-assets/scratch3_music/${asset.assetId}.${asset.dataFormat}`
-                  );
-              }
-              setProjectHost (projectHost) {
-                  this.projectHost = projectHost;
-              }
-              setProjectToken (projectToken) {
-                  this.projectToken = projectToken;
-              }
-              getProjectGetConfig (projectAsset) {
-                  const path = `${this.projectHost}/${projectAsset.assetId}`;
-                  const qs = this.projectToken ? `?token=${this.projectToken}` : '';
-                  return path + qs;
-              }
-              setAssetHost (assetHost) {
-                  this.assetHost = assetHost;
-              }
-              getAssetGetConfig (asset) {
-                  return `${this.assetHost}/internalapi/asset/${asset.assetId}.${asset.dataFormat}/get/`;
-              }
-              setTranslatorFunction (translator) {
-                  this.translator = translator;
-                  this.cacheDefaultProject();
-              }
-              cacheDefaultProject () {
-                  const defaultProjectAssets = defaultProject(this.translator);
-                  defaultProjectAssets.forEach(asset => this.builtinHelper._store(
-                      this.AssetType[asset.assetType],
-                      this.DataFormat[asset.dataFormat],
-                      asset.data,
-                      asset.id
-                  ));
-              }
-          }
-          const storage = new Storage();
-          export default storage;
-          EOF
+          # 4. Fix native scratch-storage Web Worker path so Sprites, Backdrops, Costumes & Sounds load on /block-studio/
+          find node_modules/scratch-storage -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \) -exec sed -i 's|"/chunks/|"chunks/|g' {} + || true
+          find node_modules/scratch-storage -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \) -exec sed -i "s|'/chunks/|'chunks/|g" {} + || true
 
       - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
@@ -135,7 +68,12 @@ jobs:
           done
 
       - name: Build Custom Scratch GUI
-        run: npx webpack --stats-error-details
+        run: |
+          npx webpack --stats-error-details
+          # Copy all fetch-worker chunks into both ./build/chunks/ and ./build/static/chunks/
+          mkdir -p ./build/chunks ./build/static/chunks
+          find node_modules/scratch-storage -type f -name "*fetch-worker*" -exec cp {} ./build/chunks/ \; || true
+          find node_modules/scratch-storage -type f -name "*fetch-worker*" -exec cp {} ./build/static/chunks/ \; || true
         env:
           NODE_ENV: production
           CI: false
