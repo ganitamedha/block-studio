@@ -53,7 +53,10 @@ jobs:
 
       - name: Build Custom Scratch GUI
         run: |
+          find node_modules/scratch-storage -type f -name "*.js" -exec sed -i 's|"/chunks/fetch-worker|"chunks/fetch-worker|g' {} + || true
           npx webpack --stats-error-details
+          mkdir -p ./build/chunks
+          find node_modules/scratch-storage -type f -name "*fetch-worker*" -exec cp {} ./build/chunks/ \;
           cp -rn node_modules/scratch-storage/dist/web/* ./build/ 2>/dev/null || true
         env:
           NODE_ENV: production
