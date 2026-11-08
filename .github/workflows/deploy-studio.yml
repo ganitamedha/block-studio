@@ -8,7 +8,6 @@ on:
       - master
   workflow_dispatch:
 
-# Grant permissions for GitHub Actions to deploy directly to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -17,6 +16,9 @@ permissions:
 concurrency:
   group: "pages"
   cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build_and_deploy:
@@ -29,19 +31,27 @@ jobs:
       - name: Checkout Repository Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Environment in Cloud
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
 
-      - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+      - name: Install Dependencies (Bypass Legacy Prepublish Failure)
+        run: npm install --legacy-peer-deps --ignore-scripts
+
+      - name: Generate Required Microbit Hex Stub for Webpack
+        run: |
+          mkdir -p src/generated
+          printf "module.exports = '';\n" > src/generated/microbit-hex-url.cjs
 
       - name: Build Custom Scratch GUI
         run: npm run build
         env:
           CI: false
+          NODE_OPTIONS: --max_old_space_size=6144
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Upload Built Studio for GitHub Pages
         uses: actions/upload-pages-artifact@v3
