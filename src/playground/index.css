@@ -1,10 +1,9 @@
 /* ==========================================================================
    GLOBAL LANDING PAGE UI/UX THEME (src/playground/index.css)
+   Webpack CSS-Modules Safe Version
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
-
-:root {
+:global(:root) {
     --tm-header-start: #0D9488;      /* Top Menu Bar Left Gradient (Teal) */
     --tm-header-end: #0284C7;        /* Top Menu Bar Right Gradient (Sky Blue) */
     --tm-workspace-bg: #F0FDFA;      /* Main Page Background (Soft Mint Cream) */
@@ -17,44 +16,31 @@
     --tm-text-dark: #1E293B;         /* Deep Navy Slate Text (No Pure Black) */
 }
 
-html,
-body {
+:global(html),
+:global(body) {
     height: 100%;
     margin: 0;
     background-color: var(--tm-workspace-bg);
     color: var(--tm-text-dark);
-    font-family: 'Poppins', 'Nunito', "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: "Nunito", "Poppins", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
-/* Force Poppins/Nunito across UI labels, tabs, and inputs */
-button,
-input,
-select,
-textarea,
-[class*="menu-bar_"],
-[class*="gui_tab_"],
-[class*="sprite-info_"],
-[class*="sprite-selector_"],
-[class*="stage-selector_"] {
-    font-family: 'Poppins', 'Nunito', sans-serif !important;
-}
-
 /* 1. TOP NAVIGATION HEADER BAR */
-[class*="menu-bar_menu-bar_"] {
+:global([class*="menu-bar_menu-bar_"]) {
     background: linear-gradient(90deg, var(--tm-header-start) 0%, var(--tm-header-end) 100%) !important;
     border-bottom: 2px solid #0F766E !important;
     box-shadow: 0 2px 10px rgba(13, 148, 136, 0.18) !important;
     color: #FFFFFF !important;
 }
 
-[class*="menu-bar_menu-bar-item_"]:hover {
+:global([class*="menu-bar_menu-bar-item_"]:hover) {
     background-color: rgba(255, 255, 255, 0.2) !important;
     border-radius: 8px;
 }
 
 /* Project Title Input Box in Top Header */
-[class*="project-title-input_title-field_"] {
+:global([class*="project-title-input_title-field_"]) {
     background-color: rgba(255, 255, 255, 0.18) !important;
     border: 1px solid rgba(255, 255, 255, 0.45) !important;
     border-radius: 8px !important;
@@ -62,18 +48,18 @@ textarea,
     font-weight: 600 !important;
 }
 
-[class*="project-title-input_title-field_"]:focus,
-[class*="project-title-input_title-field_"]:hover {
+:global([class*="project-title-input_title-field_"]:focus),
+:global([class*="project-title-input_title-field_"]:hover) {
     background-color: #FFFFFF !important;
     color: var(--tm-text-dark) !important;
 }
 
 /* 2. MAIN WORKSPACE & TAB BAR (Code / Costumes / Sounds) */
-[class*="gui_body-wrapper_"] {
+:global([class*="gui_body-wrapper_"]) {
     background-color: var(--tm-workspace-bg) !important;
 }
 
-[class*="gui_tab_"] {
+:global([class*="gui_tab_"]) {
     background-color: #CCFBF1 !important;
     border: 1px solid var(--tm-border-color) !important;
     color: var(--tm-text-dark) !important;
@@ -81,57 +67,36 @@ textarea,
     transition: all 0.15s ease;
 }
 
-[class*="gui_tab_"][class*="gui_is-selected_"] {
+:global([class*="gui_tab_"][class*="gui_is-selected_"]) {
     background-color: var(--tm-primary-accent) !important;
     border-color: var(--tm-primary-accent) !important;
     color: #FFFFFF !important;
     box-shadow: 0 -2px 8px rgba(2, 132, 199, 0.2);
 }
 
-[class*="gui_tab_"][class*="gui_is-selected_"] img {
+:global([class*="gui_tab_"][class*="gui_is-selected_"] img) {
     filter: brightness(0) invert(1);
 }
 
-/* 3. LEFT BLOCK CATEGORY SIDEBAR & CODING CANVAS */
-.scratchCategoryMenu {
-    background-color: #FFFFFF !important;
-    border-right: 1px solid var(--tm-border-color) !important;
-    color: var(--tm-text-dark) !important;
-}
-
-.scratchCategoryMenuRow:hover {
-    background-color: var(--tm-workspace-bg) !important;
-    border-radius: 6px;
-}
-
-.blocklySvg {
-    background-color: var(--tm-canvas-bg) !important;
-}
-
-.blocklyFlyoutBackground {
-    fill: #FFFFFF !important;
-    fill-opacity: 0.96 !important;
-}
-
-/* Bottom-Left "Add Extension" Button */
-[class*="gui_extension-button-container_"] {
+/* 3. BOTTOM-LEFT "ADD EXTENSION" BUTTON */
+:global([class*="gui_extension-button-container_"]) {
     background: linear-gradient(135deg, #0D9488 0%, #0284C7 100%) !important;
     border-color: #0F766E !important;
 }
 
-/* 4. STAGE HEADER (Green Flag / Stop Bar) & STAGE FRAME */
-[class*="stage-header_stage-header-wrapper_"] {
+/* 4. STAGE HEADER & STAGE FRAME */
+:global([class*="stage-header_stage-header-wrapper_"]) {
     background-color: var(--tm-workspace-bg) !important;
 }
 
-[class*="stage_stage-wrapper_"] [class*="stage_stage_"] {
+:global([class*="stage_stage-wrapper_"] [class*="stage_stage_"]) {
     border: 2px solid var(--tm-border-color) !important;
     border-radius: 12px !important;
     box-shadow: 0 4px 12px rgba(15, 118, 110, 0.08) !important;
 }
 
 /* 5. SPRITE INFO PANEL (Sprite Name, X, Y, Size, Direction) */
-[class*="sprite-info_sprite-info_"] {
+:global([class*="sprite-info_sprite-info_"]) {
     background-color: #FFFFFF !important;
     border-bottom: 1px solid var(--tm-border-color) !important;
     border-top-left-radius: 10px !important;
@@ -139,84 +104,82 @@ textarea,
     color: var(--tm-text-dark) !important;
 }
 
-[class*="buffered-input_input_"] {
+:global([class*="buffered-input_input_"]) {
     border: 1.5px solid #CBD5E1 !important;
     border-radius: 8px !important;
     color: var(--tm-text-dark) !important;
     font-weight: 600 !important;
 }
 
-[class*="buffered-input_input_"]:focus {
+:global([class*="buffered-input_input_"]:focus) {
     border-color: var(--tm-primary-accent) !important;
     box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.2) !important;
 }
 
 /* 6. SPRITE SELECTOR & BACKDROP SELECTOR PANELS */
-[class*="sprite-selector_sprite-selector_"] {
+:global([class*="sprite-selector_sprite-selector_"]) {
     background-color: var(--tm-panel-bg) !important;
     border: 1.5px solid var(--tm-border-color) !important;
     border-radius: 10px !important;
 }
 
-[class*="stage-selector_stage-selector_"] {
+:global([class*="stage-selector_stage-selector_"]) {
     background-color: #FFFFFF !important;
     border: 1.5px solid var(--tm-border-color) !important;
     border-radius: 10px !important;
 }
 
-[class*="stage-selector_header_"] {
+:global([class*="stage-selector_header_"]) {
     background-color: var(--tm-panel-bg) !important;
     border-bottom: 1px solid var(--tm-border-color) !important;
     color: var(--tm-text-dark) !important;
 }
 
 /* Selected Sprite Card inside the Sprite List */
-[class*="sprite-selector-item_sprite-selector-item_"] {
+:global([class*="sprite-selector-item_sprite-selector-item_"]) {
     background-color: #FFFFFF !important;
     border-radius: 10px !important;
 }
 
-[class*="sprite-selector-item_is-selected_"] {
+:global([class*="sprite-selector-item_is-selected_"]) {
     border: 2.5px solid var(--tm-primary-accent) !important;
     box-shadow: 0 4px 10px rgba(2, 132, 199, 0.18) !important;
 }
 
-[class*="sprite-selector-item_sprite-info_"] {
+:global([class*="sprite-selector-item_sprite-info_"]) {
     background-color: var(--tm-primary-accent) !important;
     color: #FFFFFF !important;
 }
 
 /* 7. FLOATING "CHOOSE A SPRITE" & "CHOOSE A BACKDROP" BUTTONS */
-[class*="action-menu_main-button_"] {
+:global([class*="action-menu_main-button_"]) {
     background-color: var(--tm-action-btn) !important;
     box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35) !important;
 }
 
-[class*="action-menu_main-button_"]:hover {
+:global([class*="action-menu_main-button_"]:hover) {
     background-color: var(--tm-action-btn-hover) !important;
 }
 
-[class*="action-menu_more-buttons-outer_"] {
+:global([class*="action-menu_more-buttons-outer_"]) {
     background-color: var(--tm-header-start) !important;
 }
 
 /* 8. LIBRARY POPUP MODALS (Sprites, Backdrops, Costumes, Extensions) */
-[class*="modal_header_"] {
+:global([class*="modal_header_"]) {
     background: linear-gradient(90deg, var(--tm-header-start) 0%, var(--tm-header-end) 100%) !important;
 }
 
-[class*="library_library-scroll-grid_"] {
+:global([class*="library_library-scroll-grid_"]) {
     background-color: var(--tm-workspace-bg) !important;
 }
 
-[class*="library-item_library-item_"] {
+:global([class*="library-item_library-item_"]) {
     border-radius: 12px !important;
     border: 2px solid var(--tm-border-color) !important;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-[class*="library-item_library-item_"]:hover {
+:global([class*="library-item_library-item_"]:hover) {
     border-color: var(--tm-primary-accent) !important;
-    transform: translateY(-2px);
     box-shadow: 0 6px 14px rgba(2, 132, 199, 0.15) !important;
 }
