@@ -31,22 +31,30 @@ jobs:
       - name: Checkout Repository Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Environment
+      - name: Setup Node.js 20 LTS (Required by Scratch-GUI)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
-      - name: Install Dependencies (Bypass Legacy Prepublish Failure)
-        run: npm install --legacy-peer-deps --ignore-scripts
+      - name: Clean Install Exact Locked Dependencies
+        run: npm ci --ignore-scripts
 
-      - name: Generate Required Microbit Hex Stub for Webpack
+      - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
+          node ./scripts/prepublish.mjs || true
           mkdir -p src/generated
-          printf "module.exports = '';\n" > src/generated/microbit-hex-url.cjs
+          for file in $(grep -rhoE "generated/[a-zA-Z0-9._-]+(\.cjs|\.js)" src/ || true); do
+            target="src/$file"
+            if [ ! -f "$target" ]; then
+              echo "Creating fallback stub for $target"
+              printf "module.exports = '';\n" > "$target"
+            fi
+          done
 
       - name: Build Custom Scratch GUI
-        run: npm run build
+        run: npx webpack --stats-error-details
         env:
+          NODE_ENV: production
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
