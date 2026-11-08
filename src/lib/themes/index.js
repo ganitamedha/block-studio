@@ -1,81 +1,109 @@
-import defaultsDeep from 'lodash.defaultsdeep';
-import {defineMessages} from 'react-intl';
-
-import {
-    blockColors as darkModeBlockColors,
-    extensions as darkModeExtensions
-} from './dark';
-import {
-    blockColors as highContrastBlockColors,
-    extensions as highContrastExtensions
-} from './high-contrast';
-import {blockColors as defaultColors} from './default';
-
-import defaultIcon from './default/icon.svg';
-import highContrastIcon from './high-contrast/icon.svg';
-
-const DEFAULT_THEME = 'default';
-const HIGH_CONTRAST_THEME = 'high-contrast';
-const DARK_THEME = 'dark';
-
-const mergeWithDefaults = colors => defaultsDeep({}, colors, defaultColors);
-
-const messages = defineMessages({
-    [DEFAULT_THEME]: {
-        id: 'gui.theme.default',
-        defaultMessage: 'Original',
-        description: 'label for original theme'
+const blockColors = {
+    motion: {
+        primary: '#0284C7',
+        secondary: '#0369A1',
+        tertiary: '#075985',
+        quaternary: '#0369A1'
     },
-    [DARK_THEME]: {
-        id: 'gui.theme.dark',
-        defaultMessage: 'Dark',
-        description: 'label for dark mode theme'
+    looks: {
+        primary: '#7C3AED',
+        secondary: '#6D28D9',
+        tertiary: '#5B21B6',
+        quaternary: '#6D28D9'
     },
-    [HIGH_CONTRAST_THEME]: {
-        id: 'gui.theme.highContrast',
-        defaultMessage: 'High Contrast',
-        description: 'label for high theme'
-    }
-});
-
-const themeMap = {
-    [DEFAULT_THEME]: {
-        blocksMediaFolder: 'blocks-media/default',
-        colors: defaultColors,
-        extensions: {},
-        label: messages[DEFAULT_THEME],
-        icon: defaultIcon
+    sounds: {
+        primary: '#DB2777',
+        secondary: '#BE185D',
+        tertiary: '#9D174D',
+        quaternary: '#BE185D'
     },
-    [DARK_THEME]: {
-        blocksMediaFolder: 'blocks-media/default',
-        colors: mergeWithDefaults(darkModeBlockColors),
-        extensions: darkModeExtensions,
-        label: messages[DARK_THEME]
+    control: {
+        primary: '#F59E0B',
+        secondary: '#D97706',
+        tertiary: '#B45309',
+        quaternary: '#D97706'
     },
-    [HIGH_CONTRAST_THEME]: {
-        blocksMediaFolder: 'blocks-media/high-contrast',
-        colors: mergeWithDefaults(highContrastBlockColors),
-        extensions: highContrastExtensions,
-        label: messages[HIGH_CONTRAST_THEME],
-        icon: highContrastIcon
-    }
+    event: {
+        primary: '#EAB308',
+        secondary: '#CA8A04',
+        tertiary: '#A16207',
+        quaternary: '#CA8A04'
+    },
+    sensing: {
+        primary: '#0891B2',
+        secondary: '#0E7490',
+        tertiary: '#155E75',
+        quaternary: '#0E7490'
+    },
+    pen: {
+        primary: '#0D9488',
+        secondary: '#0F766E',
+        tertiary: '#115E59',
+        quaternary: '#0F766E'
+    },
+    operators: {
+        primary: '#10B981',
+        secondary: '#059669',
+        tertiary: '#047857',
+        quaternary: '#059669'
+    },
+    data: {
+        primary: '#F97316',
+        secondary: '#EA580C',
+        tertiary: '#C2410C',
+        quaternary: '#EA580C'
+    },
+    // This is not a new category, but rather for differentiation
+    // between lists and scalar variables.
+    data_lists: {
+        primary: '#EA580C',
+        secondary: '#C2410C',
+        tertiary: '#9A3412',
+        quaternary: '#C2410C'
+    },
+    more: {
+        primary: '#F43F5E',
+        secondary: '#E11D48',
+        tertiary: '#BE123C',
+        quaternary: '#E11D48'
+    },
+    text: '#FFFFFF',
+    workspace: '#F0FDFA',
+    toolboxHover: '#0D9488',
+    toolboxSelected: '#E6FFFA',
+    toolboxText: '#1E293B',
+    toolbox: '#FFFFFF',
+    flyout: '#F8FAFC',
+    scrollbar: '#99F6E4',
+    scrollbarHover: '#0D9488',
+    textField: '#FFFFFF',
+    textFieldText: '#1E293B',
+    insertionMarker: '#0D9488',
+    insertionMarkerOpacity: 0.25,
+    dragShadowOpacity: 0.6,
+    stackGlow: '#38BDF8',
+    stackGlowSize: 4,
+    stackGlowOpacity: 1,
+    replacementGlow: '#FFFFFF',
+    replacementGlowSize: 2,
+    replacementGlowOpacity: 1,
+    colourPickerStroke: '#FFFFFF',
+    // CSS colours: support RGBA
+    fieldShadow: 'rgba(30, 41, 59, 0.15)',
+    dropDownShadow: 'rgba(30, 41, 59, 0.25)',
+    numPadBackground: '#0D9488',
+    numPadBorder: '#0F766E',
+    numPadActiveBackground: '#0F766E',
+    numPadText: 'white', // Do not use hex here, it cannot be inlined with data-uri SVG
+    valueReportBackground: '#FFFFFF',
+    valueReportBorder: '#99F6E4',
+    valueReportForeground: '#1E293B',
+    menuHover: 'rgba(13, 148, 136, 0.2)'
 };
 
-const getColorsForTheme = theme => {
-    const themeInfo = themeMap[theme];
-
-    if (!themeInfo) {
-        throw new Error(`Undefined theme ${theme}`);
-    }
-
-    return themeInfo.colors;
-};
+const extensions = {};
 
 export {
-    DEFAULT_THEME,
-    DARK_THEME,
-    HIGH_CONTRAST_THEME,
-    defaultColors,
-    getColorsForTheme,
-    themeMap
+    blockColors,
+    extensions
 };
