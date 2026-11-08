@@ -1,0 +1,53 @@
+name: Build and Deploy Custom Scratch Studio
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - master
+  workflow_dispatch:
+
+# Grant permissions for GitHub Actions to deploy directly to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build_and_deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment in Cloud
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Custom Scratch GUI
+        run: npm run build
+        env:
+          CI: false
+
+      - name: Upload Built Studio for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './build'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
