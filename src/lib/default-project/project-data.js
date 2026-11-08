@@ -66,7 +66,7 @@ const projectData = translateFunction => {
             },
             {
                 isStage: false,
-                name: translator(messages.sprite, {index: 1}),
+                name: "MedhaBot",
                 variables: {},
                 lists: {},
                 broadcasts: {},
@@ -75,7 +75,7 @@ const projectData = translateFunction => {
                 costumes: [
                     {
                         assetId: 'bcf454acf82e4504149f7ffe07081dbc',
-                        name: "Medha the Astro-Bot1",
+                        name: translator(messages.costume, {index: 1}),
                         bitmapResolution: 1,
                         md5ext: 'bcf454acf82e4504149f7ffe07081dbc.svg',
                         dataFormat: 'svg',
@@ -84,7 +84,7 @@ const projectData = translateFunction => {
                     },
                     {
                         assetId: '0fb9be3e8397c983338cb71dc84d0b25',
-                        name: "Medha the Astro-Bot2",
+                        name: translator(messages.costume, {index: 2}),
                         bitmapResolution: 1,
                         md5ext: '0fb9be3e8397c983338cb71dc84d0b25.svg',
                         dataFormat: 'svg',
