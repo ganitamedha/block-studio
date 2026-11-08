@@ -38,6 +38,7 @@ jobs:
 
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
+       npm install scratch-storage@2.3.1 --legacy-peer-deps --ignore-scripts
 
       - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
