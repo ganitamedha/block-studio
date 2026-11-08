@@ -1,4 +1,4 @@
-import ScratchStorage from 'scratch-storage';
+import {ScratchStorage} from 'scratch-storage';
 
 import defaultProject from './default-project';
 
@@ -9,6 +9,9 @@ import defaultProject from './default-project';
 class Storage extends ScratchStorage {
     constructor () {
         super();
+        if (this.webHelper && Array.isArray(this.webHelper.tools) && this.webHelper.tools.length > 1) {
+            this.webHelper.tools = this.webHelper.tools.slice(-1);
+        }
         this.cacheDefaultProject();
     }
     addOfficialScratchWebStores () {
