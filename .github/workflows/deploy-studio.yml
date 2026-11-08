@@ -38,7 +38,6 @@ jobs:
 
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
-       npm install scratch-storage@2.3.1 --legacy-peer-deps --ignore-scripts
 
       - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
@@ -53,7 +52,9 @@ jobs:
           done
 
       - name: Build Custom Scratch GUI
-        run: npx webpack --stats-error-details
+        run: |
+          npx webpack --stats-error-details
+          cp -rn node_modules/scratch-storage/dist/web/* ./build/ 2>/dev/null || true
         env:
           NODE_ENV: production
           CI: false
