@@ -36,25 +36,42 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Clean Install Exact Locked Dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Self-Heal Source Files & Fix Subfolder Asset Loading
+      - name: Restore Clean Core Files & Apply Safe Customizations
         run: |
-          # 1. Restore official src/lib/storage.js so native {ScratchStorage} loads the page cleanly
-          curl -sL https://raw.githubusercontent.com/scratchfoundation/scratch-gui/develop/src/lib/storage.js > src/lib/storage.js
+          # 1. Restore official core files that caused the blank screen (keeps your mascot & logo untouched)
+          BASE_URL="https://raw.githubusercontent.com/scratchfoundation/scratch-gui/develop"
+          curl -sL "$BASE_URL/src/playground/index.css" > src/playground/index.css
+          curl -sL "$BASE_URL/src/playground/render-gui.jsx" > src/playground/render-gui.jsx
+          curl -sL "$BASE_URL/src/components/gui/gui.jsx" > src/components/gui/gui.jsx
+          curl -sL "$BASE_URL/src/css/colors.css" > src/css/colors.css
+          curl -sL "$BASE_URL/src/lib/themes/default/index.js" > src/lib/themes/default/index.js
+          curl -sL "$BASE_URL/src/lib/storage.js" > src/lib/storage.js
 
-          # 2. Prepend official Scratch base CSS variables so PostCSS never fails on missing $variables
-          curl -sL https://raw.githubusercontent.com/scratchfoundation/scratch-gui/develop/src/css/colors.css > /tmp/base_colors.css
-          cat src/css/colors.css > /tmp/custom_colors.css
-          cat /tmp/base_colors.css /tmp/custom_colors.css > src/css/colors.css
+          # 2. Safely remove "Share" / "See Project Page" (showComingSoon) & disable Backpack in render-gui.jsx
+          sed -i 's/showComingSoon//g' src/playground/render-gui.jsx
+          sed -i 's/backpackVisible/backpackVisible={false}/g' src/playground/render-gui.jsx
+          sed -i 's|https://scratch.mit.edu|https://www.techmedha.in|g' src/playground/render-gui.jsx
 
-          # 3. Keep src/playground/index.css clean for Webpack CSS-Modules
-          printf "html,\nbody {\n    height: 100%%;\n    margin: 0;\n    background-color: #F0FDFA;\n}\n" > src/playground/index.css
+          # 3. Safely update the 9 Block Category hex colors in-place without altering JS object structure
+          sed -i 's/#4C97FF/#0284C7/gI; s/#4280D7/#0369A1/gI; s/#3373CC/#075985/gI' src/lib/themes/default/index.js
+          sed -i 's/#9966FF/#7C3AED/gI; s/#855CD6/#6D28D9/gI; s/#774DCB/#5B21B6/gI' src/lib/themes/default/index.js
+          sed -i 's/#CF63CF/#DB2777/gI; s/#C94FC9/#BE185D/gI; s/#BD42BD/#9D174D/gI' src/lib/themes/default/index.js
+          sed -i 's/#FFAB19/#F59E0B/gI; s/#EC9C13/#D97706/gI; s/#CF8B17/#B45309/gI' src/lib/themes/default/index.js
+          sed -i 's/#FFBF00/#EAB308/gI; s/#E6AC00/#CA8A04/gI; s/#CC9900/#A16207/gI' src/lib/themes/default/index.js
+          sed -i 's/#5CB1D6/#0891B2/gI; s/#47A8D1/#0E7490/gI; s/#2E8EB8/#155E75/gI' src/lib/themes/default/index.js
+          sed -i 's/#0FBD8C/#0D9488/gI; s/#0DA57A/#0F766E/gI; s/#0B8E69/#115E59/gI' src/lib/themes/default/index.js
+          sed -i 's/#59C059/#10B981/gI; s/#46B946/#059669/gI; s/#389438/#047857/gI' src/lib/themes/default/index.js
+          sed -i 's/#FF8C1A/#F97316/gI; s/#FF8000/#EA580C/gI; s/#DB6E00/#C2410C/gI' src/lib/themes/default/index.js
+          sed -i 's/#FF661A/#EA580C/gI; s/#FF5500/#C2410C/gI; s/#E64D00/#9A3412/gI' src/lib/themes/default/index.js
+          sed -i 's/#FF6680/#F43F5E/gI; s/#FF4D6A/#E11D48/gI; s/#FF3355/#BE123C/gI' src/lib/themes/default/index.js
 
-          # 4. Fix native scratch-storage Web Worker path so Sprites, Backdrops, Costumes & Sounds load on /block-studio/
-          find node_modules/scratch-storage -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \) -exec sed -i 's|"/chunks/|"chunks/|g' {} + || true
-          find node_modules/scratch-storage -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \) -exec sed -i "s|'/chunks/|'chunks/|g" {} + || true
+          # 4. Switch src/lib/storage.js import to match scratch-storage@2.3.1 (Fixes Issue #9817)
+          sed -i "s/import {ScratchStorage} from 'scratch-storage';/import ScratchStorage from 'scratch-storage';/g" src/lib/storage.js
+
+      - name: Clean Install Dependencies & Apply Scratch-Storage 2.3.1 Fix
+        run: |
+          npm ci --ignore-scripts
+          npm install scratch-storage@2.3.1 --no-save --legacy-peer-deps --ignore-scripts
 
       - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
@@ -68,12 +85,7 @@ jobs:
           done
 
       - name: Build Custom Scratch GUI
-        run: |
-          npx webpack --stats-error-details
-          # Copy all fetch-worker chunks into both ./build/chunks/ and ./build/static/chunks/
-          mkdir -p ./build/chunks ./build/static/chunks
-          find node_modules/scratch-storage -type f -name "*fetch-worker*" -exec cp {} ./build/chunks/ \; || true
-          find node_modules/scratch-storage -type f -name "*fetch-worker*" -exec cp {} ./build/static/chunks/ \; || true
+        run: npx webpack --stats-error-details
         env:
           NODE_ENV: production
           CI: false
@@ -140,11 +152,15 @@ jobs:
               filter: brightness(0) invert(1);
           }
 
-          /* Left Block Category Sidebar & Extension Button */
+          /* Left Block Category Sidebar & Coding Canvas */
           .scratchCategoryMenu {
               background-color: #FFFFFF !important;
               border-right: 1px solid var(--tm-border-color) !important;
               color: var(--tm-text-dark) !important;
+          }
+
+          .blocklySvg {
+              background-color: var(--tm-canvas-bg) !important;
           }
 
           [class*="gui_extension-button-container_"] {
