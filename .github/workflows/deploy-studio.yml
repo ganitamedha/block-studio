@@ -36,42 +36,37 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Restore Clean Core Files & Apply Safe Customizations
+      - name: Restore Clean Core Files from Official Upstream & Apply Customizations
         run: |
-          # 1. Restore official core files that caused the blank screen (keeps your mascot & logo untouched)
-          BASE_URL="https://raw.githubusercontent.com/scratchfoundation/scratch-gui/develop"
-          curl -sL "$BASE_URL/src/playground/index.css" > src/playground/index.css
-          curl -sL "$BASE_URL/src/playground/render-gui.jsx" > src/playground/render-gui.jsx
-          curl -sL "$BASE_URL/src/components/gui/gui.jsx" > src/components/gui/gui.jsx
-          curl -sL "$BASE_URL/src/css/colors.css" > src/css/colors.css
-          curl -sL "$BASE_URL/src/lib/themes/default/index.js" > src/lib/themes/default/index.js
-          curl -sL "$BASE_URL/src/lib/storage.js" > src/lib/storage.js
+          # 1. Restore clean official core files via Git (keeps your MedhaBot mascot & logo untouched)
+          git remote add upstream https://github.com/scratchfoundation/scratch-gui.git || true
+          git fetch upstream develop --depth=1
+          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/storage.js
 
-          # 2. Safely remove "Share" / "See Project Page" (showComingSoon) & disable Backpack in render-gui.jsx
-          sed -i 's/showComingSoon//g' src/playground/render-gui.jsx
-          sed -i 's/backpackVisible/backpackVisible={false}/g' src/playground/render-gui.jsx
-          sed -i 's|https://scratch.mit.edu|https://www.techmedha.in|g' src/playground/render-gui.jsx
+          # 2. Remove disabled "Share" / "See Project Page" buttons & point logo to www.techmedha.in
+          sed -i 's/showComingSoon//g' src/playground/render-gui.jsx || true
+          sed -i 's|https://scratch.mit.edu|https://www.techmedha.in|g' src/playground/render-gui.jsx || true
 
-          # 3. Safely update the 9 Block Category hex colors in-place without altering JS object structure
-          sed -i 's/#4C97FF/#0284C7/gI; s/#4280D7/#0369A1/gI; s/#3373CC/#075985/gI' src/lib/themes/default/index.js
-          sed -i 's/#9966FF/#7C3AED/gI; s/#855CD6/#6D28D9/gI; s/#774DCB/#5B21B6/gI' src/lib/themes/default/index.js
-          sed -i 's/#CF63CF/#DB2777/gI; s/#C94FC9/#BE185D/gI; s/#BD42BD/#9D174D/gI' src/lib/themes/default/index.js
-          sed -i 's/#FFAB19/#F59E0B/gI; s/#EC9C13/#D97706/gI; s/#CF8B17/#B45309/gI' src/lib/themes/default/index.js
-          sed -i 's/#FFBF00/#EAB308/gI; s/#E6AC00/#CA8A04/gI; s/#CC9900/#A16207/gI' src/lib/themes/default/index.js
-          sed -i 's/#5CB1D6/#0891B2/gI; s/#47A8D1/#0E7490/gI; s/#2E8EB8/#155E75/gI' src/lib/themes/default/index.js
-          sed -i 's/#0FBD8C/#0D9488/gI; s/#0DA57A/#0F766E/gI; s/#0B8E69/#115E59/gI' src/lib/themes/default/index.js
-          sed -i 's/#59C059/#10B981/gI; s/#46B946/#059669/gI; s/#389438/#047857/gI' src/lib/themes/default/index.js
-          sed -i 's/#FF8C1A/#F97316/gI; s/#FF8000/#EA580C/gI; s/#DB6E00/#C2410C/gI' src/lib/themes/default/index.js
-          sed -i 's/#FF661A/#EA580C/gI; s/#FF5500/#C2410C/gI; s/#E64D00/#9A3412/gI' src/lib/themes/default/index.js
-          sed -i 's/#FF6680/#F43F5E/gI; s/#FF4D6A/#E11D48/gI; s/#FF3355/#BE123C/gI' src/lib/themes/default/index.js
+          # 3. Disable the bottom Backpack bar cleanly in gui.jsx
+          sed -i 's/backpackVisible ?/false ?/g' src/components/gui/gui.jsx || true
 
-          # 4. Switch src/lib/storage.js import to match scratch-storage@2.3.1 (Fixes Issue #9817)
-          sed -i "s/import {ScratchStorage} from 'scratch-storage';/import ScratchStorage from 'scratch-storage';/g" src/lib/storage.js
+          # 4. Update all 9 Coding Block Category colors safely in-place across src/lib/themes
+          find src/lib/themes -type f -name "*.js" -exec sed -i \
+            -e 's/#4C97FF/#0284C7/gI; s/#4280D7/#0369A1/gI; s/#3373CC/#075985/gI' \
+            -e 's/#9966FF/#7C3AED/gI; s/#855CD6/#6D28D9/gI; s/#774DCB/#5B21B6/gI' \
+            -e 's/#CF63CF/#DB2777/gI; s/#C94FC9/#BE185D/gI; s/#BD42BD/#9D174D/gI' \
+            -e 's/#FFAB19/#F59E0B/gI; s/#EC9C13/#D97706/gI; s/#CF8B17/#B45309/gI' \
+            -e 's/#FFBF00/#EAB308/gI; s/#E6AC00/#CA8A04/gI; s/#CC9900/#A16207/gI' \
+            -e 's/#5CB1D6/#0891B2/gI; s/#47A8D1/#0E7490/gI; s/#2E8EB8/#155E75/gI' \
+            -e 's/#0FBD8C/#0D9488/gI; s/#0DA57A/#0F766E/gI; s/#0B8E69/#115E59/gI' \
+            -e 's/#59C059/#10B981/gI; s/#46B946/#059669/gI; s/#389438/#047857/gI' \
+            -e 's/#FF8C1A/#F97316/gI; s/#FF8000/#EA580C/gI; s/#DB6E00/#C2410C/gI' \
+            -e 's/#FF661A/#EA580C/gI; s/#FF5500/#C2410C/gI; s/#E64D00/#9A3412/gI' \
+            -e 's/#FF6680/#F43F5E/gI; s/#FF4D6A/#E11D48/gI; s/#FF3355/#BE123C/gI' \
+            {} + || true
 
-      - name: Clean Install Dependencies & Apply Scratch-Storage 2.3.1 Fix
-        run: |
-          npm ci --ignore-scripts
-          npm install scratch-storage@2.3.1 --no-save --legacy-peer-deps --ignore-scripts
+      - name: Clean Install Exact Locked Dependencies
+        run: npm ci --ignore-scripts
 
       - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
@@ -84,14 +79,18 @@ jobs:
             fi
           done
 
-      - name: Build Custom Scratch GUI
-        run: npx webpack --stats-error-details
+      - name: Build Custom Scratch GUI & Copy Storage Worker Chunks
+        run: |
+          npx webpack --stats-error-details
+          mkdir -p ./build/chunks ./build/static/chunks
+          find node_modules -path "*/scratch-storage/*" -name "*fetch-worker*" -exec cp {} ./build/chunks/ \; || true
+          find node_modules -path "*/scratch-storage/*" -name "*fetch-worker*" -exec cp {} ./build/static/chunks/ \; || true
         env:
           NODE_ENV: production
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inject Complete Landing Page UI/UX Theme into Built Studio
+      - name: Inject Complete UI/UX Theme & Subfolder Worker Fix into Built Studio
         run: |
           cat << 'EOF' > ./build/custom-theme.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
@@ -227,11 +226,28 @@ jobs:
           }
 
           /* Permanently Hide the Disabled Bottom Backpack Bar */
-          [class*="backpack_backpack-container_"] {
+          [class*="backpack_backpack-container_"],
+          [class*="backpack_backpack-header_"] {
               display: none !important;
           }
           EOF
-          sed -i 's|</head>|<link rel="stylesheet" href="custom-theme.css"></head>|g' ./build/index.html
+
+          # Route /chunks/fetch-worker requests to /block-studio/chunks/ so Sprites, Backdrops & Sounds always load
+          cat << 'EOF' > ./build/worker-fix.js
+          (function () {
+              var OriginalWorker = window.Worker;
+              window.Worker = function (scriptURL, options) {
+                  var urlStr = String(scriptURL);
+                  if (urlStr.indexOf('/chunks/') !== -1 && urlStr.indexOf('/block-studio/chunks/') === -1) {
+                      urlStr = urlStr.replace('/chunks/', '/block-studio/chunks/');
+                  }
+                  return new OriginalWorker(urlStr, options);
+              };
+              window.Worker.prototype = OriginalWorker.prototype;
+          })();
+          EOF
+
+          sed -i 's|</head>|<link rel="stylesheet" href="custom-theme.css"><script src="worker-fix.js"></script></head>|g' ./build/index.html
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
