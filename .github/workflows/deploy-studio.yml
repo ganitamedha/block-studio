@@ -46,9 +46,9 @@ jobs:
           git fetch upstream develop --depth=1
           git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js
 
-          # 2. Remove disabled "Share" / "See Project Page" buttons & point logo to www.techmedha.in
+          # 2. Remove disabled "Share" / "See Project Page" buttons & point logo to https://www.techmedha.in/
           sed -i 's/showComingSoon//g' src/playground/render-gui.jsx || true
-          sed -i 's|https://scratch.mit.edu|https://www.techmedha.in|g' src/playground/render-gui.jsx || true
+          sed -i 's|https://scratch.mit.edu|https://www.techmedha.in/|g' src/playground/render-gui.jsx || true
 
           # 3. Disable the bottom Backpack bar cleanly in gui.jsx
           sed -i 's/backpackVisible ?/false ?/g' src/components/gui/gui.jsx || true
@@ -149,7 +149,7 @@ jobs:
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inject Complete UI/UX Theme, Category Bubble Colors & Worker Fix
+      - name: Inject Complete UI/UX Theme, Logo Redirect & Worker Fix
         run: |
           cat << 'EOF' > ./build/custom-theme.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
@@ -180,12 +180,21 @@ jobs:
               font-family: 'Poppins', 'Nunito', sans-serif !important;
           }
 
-          /* Top Header Menu Bar Gradient */
+          /* Top Header Menu Bar Gradient & Clickable Logo */
           [class*="menu-bar_menu-bar_"] {
               background: linear-gradient(90deg, var(--tm-header-start) 0%, var(--tm-header-end) 100%) !important;
               border-bottom: 2px solid #0F766E !important;
               box-shadow: 0 2px 10px rgba(13, 148, 136, 0.18) !important;
               color: #FFFFFF !important;
+          }
+
+          [class*="menu-bar_scratch-logo_"] {
+              cursor: pointer !important;
+              transition: transform 0.15s ease;
+          }
+
+          [class*="menu-bar_scratch-logo_"]:hover {
+              transform: scale(1.05);
           }
 
           /* Main Workspace & Code / Costumes / Sounds Tabs */
@@ -329,7 +338,7 @@ jobs:
           }
           EOF
 
-          # Route /chunks/fetch-worker requests to /block-studio/chunks/ so Sprites, Backdrops & Sounds always load
+          # Route /chunks/fetch-worker requests AND force Logo Click -> https://www.techmedha.in/
           cat << 'EOF' > ./build/worker-fix.js
           (function () {
               var OriginalWorker = window.Worker;
@@ -341,6 +350,25 @@ jobs:
                   return new OriginalWorker(urlStr, options);
               };
               window.Worker.prototype = OriginalWorker.prototype;
+
+              // Redirect top-left Logo Click to https://www.techmedha.in/
+              document.addEventListener('click', function (e) {
+                  var logo = e.target && e.target.closest && e.target.closest('[class*="menu-bar_scratch-logo_"]');
+                  if (logo) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      var targetUrl = 'https://www.techmedha.in/';
+                      if (window.self !== window.top) {
+                          try {
+                              window.top.location.href = targetUrl;
+                          } catch (err) {
+                              window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                          }
+                      } else {
+                          window.location.href = targetUrl;
+                      }
+                  }
+              }, true);
           })();
           EOF
 
