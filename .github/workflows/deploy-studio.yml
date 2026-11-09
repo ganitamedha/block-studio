@@ -36,12 +36,15 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Restore Clean Core Files from Official Upstream & Apply Customizations
+      - name: Clean Install Exact Locked Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Restore Clean Core Files & Patch All 9 Block Categories in Scratch-Blocks & GUI
         run: |
           # 1. Restore clean official core files via Git (keeps your MedhaBot mascot & logo untouched)
           git remote add upstream https://github.com/scratchfoundation/scratch-gui.git || true
           git fetch upstream develop --depth=1
-          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/storage.js
+          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js
 
           # 2. Remove disabled "Share" / "See Project Page" buttons & point logo to www.techmedha.in
           sed -i 's/showComingSoon//g' src/playground/render-gui.jsx || true
@@ -50,23 +53,79 @@ jobs:
           # 3. Disable the bottom Backpack bar cleanly in gui.jsx
           sed -i 's/backpackVisible ?/false ?/g' src/components/gui/gui.jsx || true
 
-          # 4. Update all 9 Coding Block Category colors safely in-place across src/lib/themes
-          find src/lib/themes -type f -name "*.js" -exec sed -i \
-            -e 's/#4C97FF/#0284C7/gI; s/#4280D7/#0369A1/gI; s/#3373CC/#075985/gI' \
-            -e 's/#9966FF/#7C3AED/gI; s/#855CD6/#6D28D9/gI; s/#774DCB/#5B21B6/gI' \
-            -e 's/#CF63CF/#DB2777/gI; s/#C94FC9/#BE185D/gI; s/#BD42BD/#9D174D/gI' \
-            -e 's/#FFAB19/#F59E0B/gI; s/#EC9C13/#D97706/gI; s/#CF8B17/#B45309/gI' \
-            -e 's/#FFBF00/#EAB308/gI; s/#E6AC00/#CA8A04/gI; s/#CC9900/#A16207/gI' \
-            -e 's/#5CB1D6/#0891B2/gI; s/#47A8D1/#0E7490/gI; s/#2E8EB8/#155E75/gI' \
-            -e 's/#0FBD8C/#0D9488/gI; s/#0DA57A/#0F766E/gI; s/#0B8E69/#115E59/gI' \
-            -e 's/#59C059/#10B981/gI; s/#46B946/#059669/gI; s/#389438/#047857/gI' \
-            -e 's/#FF8C1A/#F97316/gI; s/#FF8000/#EA580C/gI; s/#DB6E00/#C2410C/gI' \
-            -e 's/#FF661A/#EA580C/gI; s/#FF5500/#C2410C/gI; s/#E64D00/#9A3412/gI' \
-            -e 's/#FF6680/#F43F5E/gI; s/#FF4D6A/#E11D48/gI; s/#FF3355/#BE123C/gI' \
-            {} + || true
+          # 4. Single-pass Node.js script to replace all 9 category & block colors across src/, scratch-blocks, and scratch-vm
+          cat << 'EOF' > /tmp/patch-colors.cjs
+          const fs = require('fs');
+          const path = require('path');
 
-      - name: Clean Install Exact Locked Dependencies
-        run: npm ci --ignore-scripts
+          const colorMap = {
+              // 1. MOTION (Electric Cobalt Blue)
+              '#4C97FF': '#2563EB', '#4280D7': '#1D4ED8', '#3373CC': '#1E40AF',
+              '#80B5FF': '#2563EB', '#B3D2FF': '#1D4ED8',
+
+              // 2. LOOKS (Deep Royal Orchid)
+              '#9966FF': '#9333EA', '#855CD6': '#7E22CE', '#774DCB': '#6B21A8',
+              '#CCB3FF': '#9333EA', '#DDCCFF': '#7E22CE',
+
+              // 3. SOUND (Crimson Rose - includes make-toolbox-xml #D65CD6)
+              '#CF63CF': '#E11D48', '#D65CD6': '#E11D48', '#C94FC9': '#BE123C', '#BD42BD': '#9F1239',
+              '#E19DE1': '#E11D48', '#FFCCFF': '#BE123C',
+
+              // 4. EVENTS (Sunset Tangerine - includes make-toolbox-xml #FFD500)
+              '#FFBF00': '#EA580C', '#FFD500': '#EA580C', '#E6AC00': '#C2410C', '#CC9900': '#9A3412',
+              '#FFE380': '#EA580C', '#FFECB3': '#C2410C',
+
+              // 5. CONTROL (Warm Honey Gold)
+              '#FFAB19': '#D97706', '#EC9C13': '#B45309', '#CF8B17': '#92400E',
+              '#FFBE4C': '#D97706', '#FFD899': '#B45309',
+
+              // 6. SENSING (Vibrant Lagoon Teal - includes make-toolbox-xml #4CBFE6)
+              '#5CB1D6': '#0D9488', '#4CBFE6': '#0D9488', '#47A8D1': '#0F766E', '#2E8EB8': '#115E59',
+              '#85C4E0': '#0D9488', '#B3E0F2': '#0F766E',
+
+              // 7. OPERATORS (Lush Jade Emerald - includes make-toolbox-xml #40BF4A)
+              '#59C059': '#059669', '#40BF4A': '#059669', '#46B946': '#047857', '#389438': '#065F46',
+              '#7ECE7E': '#059669', '#B3E6B3': '#047857',
+
+              // 8. VARIABLES & LISTS (Ruby Red & Deep Brick)
+              '#FF8C1A': '#DC2626', '#FF8000': '#B91C1C', '#DB6E00': '#991B1B',
+              '#FFA54C': '#DC2626', '#FFCC99': '#B91C1C',
+              '#FF661A': '#B91C1C', '#FF5500': '#991B1B', '#E64D00': '#7F1D1D',
+              '#FF9966': '#B91C1C',
+
+              // 9. MY BLOCKS (Electric Fuchsia)
+              '#FF6680': '#C026D3', '#FF4D6A': '#A21CAF', '#FF3355': '#86198F',
+              '#FF99AA': '#C026D3', '#FFCCD5': '#A21CAF',
+
+              // 10. EXTENSIONS / PEN (Deep Ocean Cyan)
+              '#0FBD8C': '#0284C7', '#0DA57A': '#0369A1', '#0B8E69': '#075985',
+              '#13ECAF': '#0284C7', '#75F0CD': '#0369A1'
+          };
+
+          const regex = new RegExp(Object.keys(colorMap).join('|'), 'gi');
+
+          function walkAndPatch(dir) {
+              if (!fs.existsSync(dir)) return;
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                  const fullPath = path.join(dir, entry.name);
+                  if (entry.isDirectory()) {
+                      walkAndPatch(fullPath);
+                  } else if (/\.(js|jsx|mjs|cjs|css)$/.test(entry.name)) {
+                      const content = fs.readFileSync(fullPath, 'utf8');
+                      const updated = content.replace(regex, match => colorMap[match.toUpperCase()] || match);
+                      if (updated !== content) {
+                          fs.writeFileSync(fullPath, updated, 'utf8');
+                      }
+                  }
+              }
+          }
+
+          walkAndPatch('src');
+          walkAndPatch('node_modules/scratch-blocks');
+          walkAndPatch('node_modules/scratch-vm');
+          console.log('Successfully patched all 9 block categories and blocks.');
+          EOF
+          node /tmp/patch-colors.cjs
 
       - name: Run Scratch Prepublish & Ensure Generated Assets Exist
         run: |
@@ -90,7 +149,7 @@ jobs:
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inject Complete UI/UX Theme & Subfolder Worker Fix into Built Studio
+      - name: Inject Complete UI/UX Theme, Category Bubble Colors & Worker Fix
         run: |
           cat << 'EOF' > ./build/custom-theme.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
@@ -156,6 +215,44 @@ jobs:
               background-color: #FFFFFF !important;
               border-right: 1px solid var(--tm-border-color) !important;
               color: var(--tm-text-dark) !important;
+          }
+
+          /* Explicit Category Circle Colors for All 9 Categories */
+          .scratchCategoryId-motion .scratchCategoryItemBubble {
+              background-color: #2563EB !important;
+              border-color: #1E40AF !important;
+          }
+          .scratchCategoryId-looks .scratchCategoryItemBubble {
+              background-color: #9333EA !important;
+              border-color: #6B21A8 !important;
+          }
+          .scratchCategoryId-sound .scratchCategoryItemBubble {
+              background-color: #E11D48 !important;
+              border-color: #9F1239 !important;
+          }
+          .scratchCategoryId-events .scratchCategoryItemBubble {
+              background-color: #EA580C !important;
+              border-color: #9A3412 !important;
+          }
+          .scratchCategoryId-control .scratchCategoryItemBubble {
+              background-color: #D97706 !important;
+              border-color: #92400E !important;
+          }
+          .scratchCategoryId-sensing .scratchCategoryItemBubble {
+              background-color: #0D9488 !important;
+              border-color: #115E59 !important;
+          }
+          .scratchCategoryId-operators .scratchCategoryItemBubble {
+              background-color: #059669 !important;
+              border-color: #065F46 !important;
+          }
+          .scratchCategoryId-variables .scratchCategoryItemBubble {
+              background-color: #DC2626 !important;
+              border-color: #991B1B !important;
+          }
+          .scratchCategoryId-myBlocks .scratchCategoryItemBubble {
+              background-color: #C026D3 !important;
+              border-color: #86198F !important;
           }
 
           .blocklySvg {
