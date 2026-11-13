@@ -46,7 +46,7 @@ jobs:
           git fetch upstream develop --depth=1
           git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js
 
-          # 2. Expose Scratch VM globally as window.vm for Share & Student Account Project Saving
+          # 2. Expose Scratch VM globally as window.vm for Share, QR Link & Student Account Project Saving
           sed -i 's/new VM()/(window.vm = new VM())/g' src/reducers/vm.js || true
 
           # 3. Remove disabled default MIT placeholders & point logo to https://www.techmedha.in/
@@ -156,7 +156,7 @@ jobs:
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inject Complete UI/UX Theme, Share Modal, Lifetime Student Vault & Worker Fix
+      - name: Inject Complete UI/UX Theme, QR Code Share System, Lifetime Student Vault & Worker Fix
         run: |
           cat << 'EOF' > ./build/custom-theme.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
@@ -249,7 +249,7 @@ jobs:
               border-color: #A7F3D0;
           }
 
-          /* Modal Overlay & Cards (Used by both Share & Student Login) */
+          /* Modal Overlay & Cards */
           .tm-share-overlay {
               position: fixed;
               inset: 0;
@@ -264,8 +264,8 @@ jobs:
 
           .tm-share-modal {
               background: #FFFFFF;
-              width: 92%;
-              max-width: 500px;
+              width: 94%;
+              max-width: 520px;
               border-radius: 16px;
               border: 2px solid #99F6E4;
               box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
@@ -297,17 +297,17 @@ jobs:
           }
 
           .tm-share-modal-body {
-              padding: 20px;
+              padding: 18px 20px;
               display: flex;
               flex-direction: column;
-              gap: 12px;
-              max-height: 80vh;
+              gap: 11px;
+              max-height: 82vh;
               overflow-y: auto;
           }
 
           .tm-share-field label {
               display: block;
-              font-size: 12px;
+              font-size: 11.5px;
               font-weight: 700;
               color: #0F766E;
               margin-bottom: 4px;
@@ -317,13 +317,58 @@ jobs:
           .tm-share-field input {
               width: 100%;
               box-sizing: border-box;
-              padding: 9px 12px;
+              padding: 8px 12px;
               border: 1.5px solid #99F6E4;
               border-radius: 10px;
-              font-size: 14px;
+              font-size: 13.5px;
               font-weight: 600;
               color: #1E293B;
               background: #F0FDFA;
+          }
+
+          /* QR Code & Shareable Link Box */
+          .tm-qr-box {
+              display: none;
+              background: #F0FDFA;
+              border: 2px dashed #0D9488;
+              border-radius: 12px;
+              padding: 12px;
+              text-align: center;
+              flex-direction: column;
+              align-items: center;
+              gap: 8px;
+          }
+
+          .tm-qr-box.active {
+              display: flex;
+          }
+
+          .tm-qr-canvas-wrap {
+              background: #FFFFFF;
+              padding: 10px;
+              border-radius: 12px;
+              border: 2px solid #99F6E4;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 4px 12px rgba(13, 148, 136, 0.12);
+          }
+
+          .tm-link-copy-row {
+              display: flex;
+              width: 100%;
+              gap: 6px;
+          }
+
+          .tm-link-copy-row input {
+              flex: 1;
+              padding: 7px 10px;
+              border: 1.5px solid #0284C7;
+              border-radius: 8px;
+              font-size: 12px;
+              font-weight: 600;
+              color: #0F766E;
+              background: #FFFFFF;
           }
 
           .tm-passcode-row {
@@ -353,10 +398,6 @@ jobs:
               cursor: pointer;
               white-space: nowrap;
               transition: transform 0.12s ease;
-          }
-
-          .tm-gen-btn:hover {
-              transform: translateY(-1px);
           }
 
           .tm-hint-box {
@@ -396,10 +437,10 @@ jobs:
               justify-content: center;
               gap: 8px;
               width: 100%;
-              padding: 11px 14px;
+              padding: 10px 14px;
               border: none;
               border-radius: 10px;
-              font-size: 14px;
+              font-size: 13.5px;
               font-weight: 700;
               cursor: pointer;
               transition: transform 0.12s ease, opacity 0.12s ease;
@@ -409,6 +450,22 @@ jobs:
           .tm-share-action-btn:hover {
               transform: translateY(-1px);
               opacity: 0.96;
+          }
+
+          /* Toast Notification Banner for Shared Project Loading */
+          .tm-toast-banner {
+              position: fixed;
+              bottom: 18px;
+              right: 18px;
+              background: linear-gradient(90deg, #0D9488 0%, #0284C7 100%);
+              color: #FFFFFF;
+              padding: 12px 18px;
+              border-radius: 12px;
+              font-weight: 700;
+              font-size: 13.5px;
+              box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25);
+              z-index: 99998;
+              border: 2px solid #99F6E4;
           }
 
           /* Saved Projects List inside Student Profile Modal */
@@ -569,7 +626,7 @@ jobs:
           }
           EOF
 
-          # Worker Fix + Logo Redirect + Default Title + Share Modal + Lifetime 6-Char Passcode Student Vault
+          # Worker Fix + Logo Redirect + QR Code Share Link System + Lifetime 6-Char Passcode Student Vault
           cat << 'EOF' > ./build/worker-fix.js
           (function () {
               var OriginalWorker = window.Worker;
@@ -581,6 +638,15 @@ jobs:
                   return new OriginalWorker(urlStr, options);
               };
               window.Worker.prototype = OriginalWorker.prototype;
+
+              // Load QRious HTML5 Canvas QR Generator Library
+              (function loadQRious() {
+                  if (window.QRious) return;
+                  var s = document.createElement('script');
+                  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
+                  s.async = true;
+                  document.head.appendChild(s);
+              })();
 
               // 1. Redirect top-left Logo Click to https://www.techmedha.in/
               document.addEventListener('click', function (e) {
@@ -601,7 +667,20 @@ jobs:
                   }
               }, true);
 
-              // Helper: Generate a 6-character Alphanumeric Passcode (e.g., TM4829 or A7K92M)
+              function showToast(msg) {
+                  var old = document.getElementById('tm-toast-banner');
+                  if (old) old.remove();
+                  var t = document.createElement('div');
+                  t.id = 'tm-toast-banner';
+                  t.className = 'tm-toast-banner';
+                  t.textContent = msg;
+                  document.body.appendChild(t);
+                  setTimeout(function () {
+                      if (t.parentNode) t.remove();
+                  }, 5000);
+              }
+
+              // Helper: Generate a 6-character Alphanumeric Passcode
               function generateSixCharCode() {
                   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
                   var code = 'TM';
@@ -611,7 +690,6 @@ jobs:
                   return code;
               }
 
-              // Directory of known student profiles on this browser (keyed by 6-char passcode)
               function getStudentDirectory() {
                   try {
                       var raw = localStorage.getItem('tm_student_directory_v2');
@@ -629,7 +707,6 @@ jobs:
                   } catch (e) {}
               }
 
-              // Read & Write Current Logged-in Student Profile
               function getCurrentStudent() {
                   try {
                       var raw = localStorage.getItem('tm_student_profile_v2');
@@ -649,7 +726,6 @@ jobs:
                   updateLoginButtonUI();
               }
 
-              // Helper: Update React-controlled Project Title Input Box
               function setProjectTitleInput(newTitle) {
                   var input = document.querySelector('[class*="project-title-input_title-field_"]');
                   if (!input) return;
@@ -678,6 +754,149 @@ jobs:
                   }, 500);
               }
 
+              // Compress & Decompress JSON for Fallback URL Sharing
+              async function compressToBase64Url(str) {
+                  if (typeof CompressionStream !== 'undefined') {
+                      var bytes = new TextEncoder().encode(str);
+                      var cs = new CompressionStream('deflate-raw');
+                      var writer = cs.writable.getWriter();
+                      writer.write(bytes);
+                      writer.close();
+                      var buf = await new Response(cs.readable).arrayBuffer();
+                      var bin = '';
+                      var u8 = new Uint8Array(buf);
+                      for (var i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+                      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                  }
+                  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+              }
+
+              async function decompressFromBase64Url(b64url) {
+                  var b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+                  while (b64.length % 4) b64 += '=';
+                  var bin = atob(b64);
+                  var u8 = new Uint8Array(bin.length);
+                  for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                  if (typeof DecompressionStream !== 'undefined') {
+                      var ds = new DecompressionStream('deflate-raw');
+                      var writer = ds.writable.getWriter();
+                      writer.write(u8);
+                      writer.close();
+                      var buf = await new Response(ds.readable).arrayBuffer();
+                      return new TextDecoder().decode(buf);
+                  }
+                  return decodeURIComponent(escape(bin));
+              }
+
+              // Generate Short Cloud Shareable Link for Current Project (with fallback)
+              async function createShareableProjectLink(projTitle, studentName, schoolInfo) {
+                  var baseUrl = window.location.origin + window.location.pathname;
+                  var qParams = 't=' + encodeURIComponent(projTitle) +
+                      (studentName ? '&by=' + encodeURIComponent(studentName) : '') +
+                      (schoolInfo ? '&sc=' + encodeURIComponent(schoolInfo) : '');
+
+                  if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
+                      try {
+                          var sb3Blob = await window.vm.saveProjectSb3();
+                          var resp = await fetch('https://bytebin.lucko.me/post', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/octet-stream' },
+                              body: sb3Blob
+                          });
+                          if (resp.ok) {
+                              var data = await resp.json();
+                              if (data && data.key) {
+                                  return baseUrl + '?s=' + encodeURIComponent(data.key) + '&' + qParams;
+                              }
+                          }
+                      } catch (err) {
+                          console.warn('Cloud shortener fallback:', err);
+                      }
+
+                      // Fallback: Compress VM JSON into URL Hash
+                      try {
+                          var jsonStr = window.vm.toJSON();
+                          var compressed = await compressToBase64Url(jsonStr);
+                          return baseUrl + '?' + qParams + '#z=' + compressed;
+                      } catch (e2) {}
+                  }
+                  return baseUrl;
+              }
+
+              // Render QR Code onto a target <canvas>
+              function renderQrToCanvas(canvasEl, urlText, sizePx) {
+                  if (!canvasEl) return;
+                  if (window.QRious) {
+                      new window.QRious({
+                          element: canvasEl,
+                          value: urlText,
+                          size: sizePx || 180,
+                          level: 'M',
+                          background: '#FFFFFF',
+                          foreground: '#0F172A',
+                          padding: 8
+                      });
+                  } else {
+                      var img = new Image();
+                      img.crossOrigin = 'anonymous';
+                      img.onload = function () {
+                          canvasEl.width = sizePx || 180;
+                          canvasEl.height = sizePx || 180;
+                          var ctx = canvasEl.getContext('2d');
+                          ctx.fillStyle = '#FFFFFF';
+                          ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+                          ctx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+                      };
+                      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=' + (sizePx || 180) + 'x' + (sizePx || 180) + '&data=' + encodeURIComponent(urlText);
+                  }
+              }
+
+              // Auto-Load Shared Project When Opening a QR Code Link (?s=... or #z=...)
+              var sharedProjectChecked = false;
+              async function checkAndLoadSharedProjectFromUrl() {
+                  if (sharedProjectChecked) return;
+                  var params = new URLSearchParams(window.location.search);
+                  var shareKey = params.get('s');
+                  var hashStr = window.location.hash || '';
+                  var hasHashProj = hashStr.indexOf('#z=') === 0;
+
+                  if (!shareKey && !hasHashProj) {
+                      sharedProjectChecked = true;
+                      return;
+                  }
+                  if (!window.vm || !window.vm.runtime || !window.vm.runtime.targets || !window.vm.runtime.targets.length) {
+                      return;
+                  }
+                  sharedProjectChecked = true;
+
+                  var sharedTitle = params.get('t') || 'Shared TechMedha Project';
+                  var sharedBy = params.get('by') || '';
+                  var sharedSchool = params.get('sc') || '';
+
+                  try {
+                      showToast('⏳ Loading shared project "' + sharedTitle + '"...');
+                      if (shareKey) {
+                          var resp = await fetch('https://bytebin.lucko.me/' + encodeURIComponent(shareKey));
+                          if (resp.ok) {
+                              var buf = await resp.arrayBuffer();
+                              await window.vm.loadProject(buf);
+                              setProjectTitleInput(sharedTitle);
+                              showToast('✨ Loaded "' + sharedTitle + '"' + (sharedBy ? ' by ' + sharedBy : '') + (sharedSchool ? ' (' + sharedSchool + ')' : '') + '!');
+                              return;
+                          }
+                      }
+                      if (hasHashProj) {
+                          var rawJson = await decompressFromBase64Url(hashStr.slice(3));
+                          await window.vm.loadProject(rawJson);
+                          setProjectTitleInput(sharedTitle);
+                          showToast('✨ Loaded "' + sharedTitle + '"' + (sharedBy ? ' by ' + sharedBy : '') + '!');
+                      }
+                  } catch (err) {
+                      console.error('Failed to load shared project:', err);
+                      showToast('⚠️ Could not load shared project link.');
+                  }
+              }
+
               // Helper: Download Student ID Card (.PNG) with 6-Char Passcode
               function downloadStudentIdCard(student) {
                   var c = document.createElement('canvas');
@@ -685,14 +904,12 @@ jobs:
                   c.height = 300;
                   var ctx = c.getContext('2d');
 
-                  // Card Background
                   ctx.fillStyle = '#F0FDFA';
                   ctx.fillRect(0, 0, 520, 300);
                   ctx.strokeStyle = '#0D9488';
                   ctx.lineWidth = 6;
                   ctx.strokeRect(3, 3, 514, 294);
 
-                  // Top Header Banner
                   var grad = ctx.createLinearGradient(0, 0, 520, 0);
                   grad.addColorStop(0, '#0D9488');
                   grad.addColorStop(1, '#0284C7');
@@ -705,7 +922,6 @@ jobs:
                   ctx.font = '600 13px sans-serif';
                   ctx.fillText('www.techmedha.in • Keep this 6-character code safe!', 22, 54);
 
-                  // Details
                   ctx.fillStyle = '#0F766E';
                   ctx.font = 'bold 13px sans-serif';
                   ctx.fillText('STUDENT NAME:', 26, 108);
@@ -720,7 +936,6 @@ jobs:
                   ctx.fillText(student.school || '', 160, 152);
                   ctx.fillText(student.area || '', 160, 196);
 
-                  // Passcode Box
                   ctx.fillStyle = '#0284C7';
                   ctx.fillRect(225, 224, 150, 38);
                   ctx.fillStyle = '#FFFFFF';
@@ -791,7 +1006,7 @@ jobs:
                   });
               }
 
-              // 2. Open Custom TechMedha Share Modal
+              // 2. Open Custom TechMedha Share Modal (Now with Shareable Link & QR Code Generator!)
               function openShareModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -800,6 +1015,7 @@ jobs:
                   var prefilledStudent = student ? student.name : '';
                   var prefilledSchool = student ? ([student.school, student.area].filter(Boolean).join(', ')) : '';
                   var defaultTitle = getProjectTitle();
+                  var lastGeneratedUrl = '';
 
                   var overlay = document.createElement('div');
                   overlay.id = 'tm-share-overlay';
@@ -808,7 +1024,7 @@ jobs:
                   overlay.innerHTML =
                       '<div class="tm-share-modal">' +
                           '<div class="tm-share-modal-header">' +
-                              '<span>🚀 Share Your TechMedha Project</span>' +
+                              '<span>🚀 Share Project & QR Code</span>' +
                               '<button class="tm-share-close-btn" id="tm-share-close">✕</button>' +
                           '</div>' +
                           '<div class="tm-share-modal-body">' +
@@ -816,23 +1032,41 @@ jobs:
                                   '<label>Project Title</label>' +
                                   '<input type="text" id="tm-share-title" value="' + defaultTitle.replace(/"/g, '&quot;') + '" />' +
                               '</div>' +
-                              '<div class="tm-share-field">' +
-                                  '<label>Creator / Student Name</label>' +
-                                  '<input type="text" id="tm-share-student" placeholder="Enter your name (e.g., M.V.S.S. Mokshagna)" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                              '<div style="display:flex;gap:8px;">' +
+                                  '<div class="tm-share-field" style="flex:1;">' +
+                                      '<label>Creator / Student Name</label>' +
+                                      '<input type="text" id="tm-share-student" placeholder="e.g., M.V.S.S. Mokshagna" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                                  '</div>' +
+                                  '<div class="tm-share-field" style="flex:1.2;">' +
+                                      '<label>School & Area / State</label>' +
+                                      '<input type="text" id="tm-share-school" placeholder="e.g., Techmedha High School, Dilsukhnagar" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
+                                  '</div>' +
                               '</div>' +
-                              '<div class="tm-share-field">' +
-                                  '<label>School & Area / State</label>' +
-                                  '<input type="text" id="tm-share-school" placeholder="e.g., Techmedha High School, Dilsukhnagar" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
+                              '<button class="tm-share-action-btn" id="tm-btn-gen-qr" style="background: linear-gradient(90deg, #7C3AED, #0284C7);">' +
+                                  '🔗 Generate Shareable Link & QR Code' +
+                              '</button>' +
+                              '<div class="tm-qr-box" id="tm-qr-box">' +
+                                  '<div style="font-size:12px;font-weight:700;color:#0F766E;">📱 Scan QR Code to Open Project Live</div>' +
+                                  '<div class="tm-qr-canvas-wrap">' +
+                                      '<canvas id="tm-qr-canvas" width="170" height="170"></canvas>' +
+                                  '</div>' +
+                                  '<div class="tm-link-copy-row">' +
+                                      '<input type="text" id="tm-share-url-input" readonly />' +
+                                      '<button type="button" class="tm-mini-btn" id="tm-btn-copy-link" style="background:#0D9488;padding:6px 12px;">📋 Copy Link</button>' +
+                                      '<button type="button" class="tm-mini-btn" id="tm-btn-dl-qr" style="background:#0284C7;padding:6px 12px;">⬇ QR (.PNG)</button>' +
+                                  '</div>' +
                               '</div>' +
                               '<button class="tm-share-action-btn" id="tm-btn-snapshot" style="background: linear-gradient(90deg, #0D9488, #0284C7);">' +
-                                  '📸 Download Project Showcase Card (.PNG)' +
+                                  '📸 Download Showcase Card with QR (.PNG)' +
                               '</button>' +
-                              '<button class="tm-share-action-btn" id="tm-btn-native-share" style="background: linear-gradient(90deg, #F97316, #EA580C);">' +
-                                  '📤 Share / Download Project File (.SB3)' +
-                              '</button>' +
-                              '<button class="tm-share-action-btn" id="tm-btn-whatsapp" style="background: #16A34A;">' +
-                                  '💬 Share Project on WhatsApp' +
-                              '</button>' +
+                              '<div style="display:flex;gap:8px;">' +
+                                  '<button class="tm-share-action-btn" id="tm-btn-native-share" style="background: linear-gradient(90deg, #F97316, #EA580C); flex: 1;">' +
+                                      '📤 Download (.SB3)' +
+                                  '</button>' +
+                                  '<button class="tm-share-action-btn" id="tm-btn-whatsapp" style="background: #16A34A; flex: 1;">' +
+                                      '💬 Share on WhatsApp' +
+                                  '</button>' +
+                              '</div>' +
                           '</div>' +
                       '</div>';
 
@@ -841,10 +1075,61 @@ jobs:
                   document.getElementById('tm-share-close').onclick = function () { overlay.remove(); };
                   overlay.onclick = function (ev) { if (ev.target === overlay) overlay.remove(); };
 
-                  document.getElementById('tm-btn-snapshot').onclick = function () {
+                  async function ensureShareUrlGenerated() {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
                       var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
                       var schoolInfo = document.getElementById('tm-share-school').value.trim();
+
+                      var genBtn = document.getElementById('tm-btn-gen-qr');
+                      genBtn.textContent = '⏳ Creating Shareable Link & QR Code...';
+                      lastGeneratedUrl = await createShareableProjectLink(projTitle, studentName, schoolInfo);
+                      genBtn.textContent = '🔄 Refresh Shareable Link & QR Code';
+
+                      var qrBox = document.getElementById('tm-qr-box');
+                      qrBox.className = 'tm-qr-box active';
+                      var urlInput = document.getElementById('tm-share-url-input');
+                      urlInput.value = lastGeneratedUrl;
+
+                      var qrCanvas = document.getElementById('tm-qr-canvas');
+                      renderQrToCanvas(qrCanvas, lastGeneratedUrl, 170);
+                      return lastGeneratedUrl;
+                  }
+
+                  document.getElementById('tm-btn-gen-qr').onclick = function () {
+                      ensureShareUrlGenerated();
+                  };
+
+                  document.getElementById('tm-btn-copy-link').onclick = function () {
+                      var urlInput = document.getElementById('tm-share-url-input');
+                      if (!urlInput || !urlInput.value) return;
+                      navigator.clipboard.writeText(urlInput.value).then(function () {
+                          document.getElementById('tm-btn-copy-link').textContent = '✅ Copied!';
+                          setTimeout(function () {
+                              var b = document.getElementById('tm-btn-copy-link');
+                              if (b) b.textContent = '📋 Copy Link';
+                          }, 2000);
+                      });
+                  };
+
+                  document.getElementById('tm-btn-dl-qr').onclick = function () {
+                      var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha-Project';
+                      var qrCanvas = document.getElementById('tm-qr-canvas');
+                      if (qrCanvas) {
+                          qrCanvas.toBlob(function (blob) {
+                              if (blob) downloadBlob(blob, projTitle.replace(/\s+/g, '-') + '-QR.png');
+                          }, 'image/png');
+                      }
+                  };
+
+                  // Download Showcase Card (.PNG) with Stage Snapshot + Embedded Scannable QR Code
+                  document.getElementById('tm-btn-snapshot').onclick = async function () {
+                      var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
+                      var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
+                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
+
+                      if (!lastGeneratedUrl) {
+                          await ensureShareUrlGenerated();
+                      }
 
                       var stageCanvas = document.querySelector('[class*="stage_stage_"] canvas');
                       if (window.vm && window.vm.renderer && typeof window.vm.renderer.draw === 'function') {
@@ -852,71 +1137,74 @@ jobs:
                       }
 
                       var cardCanvas = document.createElement('canvas');
-                      cardCanvas.width = 640;
-                      cardCanvas.height = 530;
+                      cardCanvas.width = 680;
+                      cardCanvas.height = 540;
                       var ctx = cardCanvas.getContext('2d');
 
                       ctx.fillStyle = '#F0FDFA';
-                      ctx.fillRect(0, 0, 640, 530);
-                      var grad = ctx.createLinearGradient(0, 0, 640, 0);
+                      ctx.fillRect(0, 0, 680, 540);
+                      var grad = ctx.createLinearGradient(0, 0, 680, 0);
                       grad.addColorStop(0, '#0D9488');
                       grad.addColorStop(1, '#0284C7');
                       ctx.fillStyle = grad;
-                      ctx.fillRect(0, 0, 640, 80);
+                      ctx.fillRect(0, 0, 680, 82);
 
                       ctx.fillStyle = '#FFFFFF';
-                      ctx.font = 'bold 21px sans-serif';
-                      ctx.fillText(projTitle, 24, 30);
+                      ctx.font = 'bold 22px sans-serif';
+                      ctx.fillText(projTitle, 24, 34);
                       ctx.font = '600 14px sans-serif';
-                      ctx.fillText('Creator: ' + studentName + (schoolInfo ? ' • ' + schoolInfo : ''), 24, 56);
+                      ctx.fillText('Creator: ' + studentName + (schoolInfo ? ' • ' + schoolInfo : ''), 24, 60);
 
+                      // Stage Snapshot on Left
                       ctx.fillStyle = '#FFFFFF';
-                      ctx.fillRect(76, 96, 488, 368);
+                      ctx.fillRect(22, 100, 488, 368);
                       if (stageCanvas) {
-                          ctx.drawImage(stageCanvas, 80, 100, 480, 360);
+                          ctx.drawImage(stageCanvas, 26, 104, 480, 360);
                       }
+
+                      // QR Code Panel on Right
+                      ctx.fillStyle = '#FFFFFF';
+                      ctx.fillRect(524, 100, 134, 174);
+                      var qrCanvas = document.getElementById('tm-qr-canvas');
+                      if (qrCanvas) {
+                          ctx.drawImage(qrCanvas, 531, 108, 120, 120);
+                      }
+                      ctx.fillStyle = '#0F766E';
+                      ctx.font = 'bold 11px sans-serif';
+                      ctx.fillText('SCAN TO PLAY', 550, 246);
+                      ctx.font = '600 10px sans-serif';
+                      ctx.fillText('LIVE PROJECT', 552, 262);
 
                       ctx.fillStyle = '#0F766E';
                       ctx.font = 'bold 15px sans-serif';
-                      ctx.fillText('Built with TechMedha Block Coding Studio • www.techmedha.in', 95, 502);
+                      ctx.fillText('Built with TechMedha Block Coding Studio • www.techmedha.in', 24, 508);
 
                       cardCanvas.toBlob(function (blob) {
-                          if (blob) downloadBlob(blob, projTitle.replace(/\s+/g, '-') + '-Showcase.png');
+                          if (blob) downloadBlob(blob, projTitle.replace(/\s+/g, '-') + '-Showcase-QR.png');
                       }, 'image/png');
                   };
 
                   document.getElementById('tm-btn-native-share').onclick = function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha-Project';
-                      var studentName = document.getElementById('tm-share-student').value.trim();
-                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
                       var fileName = projTitle.replace(/\s+/g, '-') + '.sb3';
-
                       if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
                           window.vm.saveProjectSb3().then(function (blob) {
-                              var file = new File([blob], fileName, { type: 'application/x.scratch.sb3' });
-                              if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                                  navigator.share({
-                                      title: projTitle,
-                                      text: 'Check out "' + projTitle + '"' + (studentName ? ' by ' + studentName : '') + (schoolInfo ? ' (' + schoolInfo + ')' : '') + ' built on TechMedha Studio (https://www.techmedha.in/)!',
-                                      files: [file]
-                                  }).catch(function () {
-                                      downloadBlob(blob, fileName);
-                                  });
-                              } else {
-                                  downloadBlob(blob, fileName);
-                              }
+                              downloadBlob(blob, fileName);
                           });
                       }
                   };
 
-                  document.getElementById('tm-btn-whatsapp').onclick = function () {
+                  document.getElementById('tm-btn-whatsapp').onclick = async function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
                       var studentName = document.getElementById('tm-share-student').value.trim();
                       var schoolInfo = document.getElementById('tm-share-school').value.trim();
+                      if (!lastGeneratedUrl) {
+                          await ensureShareUrlGenerated();
+                      }
                       var msg = '🌟 Check out the coding project *"' + projTitle + '"*' +
                           (studentName ? ' created by *' + studentName + '*' : '') +
                           (schoolInfo ? ' (' + schoolInfo + ')' : '') +
-                          ' on TechMedha Block Coding Studio! 🚀\nhttps://www.techmedha.in/';
+                          ' on TechMedha Block Coding Studio! 🚀\n\n🔗 Play Live Project:\n' + lastGeneratedUrl;
                       window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
                   };
               }
@@ -932,11 +1220,10 @@ jobs:
                   overlay.className = 'tm-share-overlay';
 
                   if (!student) {
-                      // View A: Lifetime Student Sign-In / Registration Form (No Class or Roll No.)
                       overlay.innerHTML =
                           '<div class="tm-share-modal">' +
                               '<div class="tm-share-modal-header">' +
-                                  '<span>🎓 TechMedha Lifetime Student Vault</span>' +
+                                  '<span>🎓 TechMedha's Student Vault</span>' +
                                   '<button class="tm-share-close-btn" id="tm-login-close">✕</button>' +
                               '</div>' +
                               '<div class="tm-share-modal-body">' +
@@ -951,7 +1238,7 @@ jobs:
                                       '💡 <b>Returning Student?</b> Type your 6-character code above to auto-fill your details! <b>New Student?</b> Type any 6-digit/letter code or click <b>Auto-Generate</b>.' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>Student Full Name *</label>' +
+                                      '<label>Student Name *</label>' +
                                       '<input type="text" id="tm-login-name" placeholder="e.g., M.V.S.S. Mokshagna" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
@@ -963,7 +1250,7 @@ jobs:
                                       '<input type="text" id="tm-login-area" placeholder="e.g., Dilsukhnagar, Hyderabad" />' +
                                   '</div>' +
                                   '<button class="tm-share-action-btn" id="tm-btn-do-login" style="background: linear-gradient(90deg, #0D9488, #0284C7); margin-top: 4px;">' +
-                                      '🔓 Open My Lifetime Project Vault' +
+                                      '🔓 Open My Projects' +
                                   '</button>' +
                               '</div>' +
                           '</div>';
@@ -977,7 +1264,6 @@ jobs:
                       var schoolInput = document.getElementById('tm-login-school');
                       var areaInput = document.getElementById('tm-login-area');
 
-                      // Auto-fill if the 6-character code already exists in this browser's student directory
                       passInput.oninput = function () {
                           var clean = passInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
                           if (passInput.value !== clean) passInput.value = clean;
@@ -991,7 +1277,6 @@ jobs:
                           }
                       };
 
-                      // System-Generated 6-Character Code Button
                       document.getElementById('tm-btn-gen-code').onclick = function () {
                           var dir = getStudentDirectory();
                           var newCode = generateSixCharCode();
@@ -1020,7 +1305,6 @@ jobs:
                               return;
                           }
 
-                          // Vault key is anchored to their 6-character code so changing classes never resets their projects
                           var studentKey = 'vault_' + passcode;
                           setCurrentStudent({
                               name: name,
@@ -1033,7 +1317,6 @@ jobs:
                           openLoginModal();
                       };
                   } else {
-                      // View B: Logged-In Student Lifetime Vault Dashboard
                       overlay.innerHTML =
                           '<div class="tm-share-modal">' +
                               '<div class="tm-share-modal-header">' +
@@ -1053,14 +1336,14 @@ jobs:
                                   '</div>' +
                                   '<div style="display:flex;gap:8px;">' +
                                       '<button class="tm-share-action-btn" id="tm-btn-save-vault" style="background: linear-gradient(90deg, #059669, #0D9488); flex: 1.4;">' +
-                                          '💾 Save Project to Vault' +
+                                          '💾 Save Project' +
                                       '</button>' +
                                       '<button class="tm-share-action-btn" id="tm-btn-id-card" style="background: #0284C7; flex: 1;">' +
                                           '🪪 Save ID Card' +
                                       '</button>' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>📂 My Lifetime Saved Projects</label>' +
+                                      '<label>📂 My Saved Projects</label>' +
                                       '<div class="tm-project-list" id="tm-vault-list">Loading your projects...</div>' +
                                   '</div>' +
                                   '<button class="tm-share-action-btn" id="tm-btn-logout" style="background: #E11D48; margin-top: 2px;">' +
@@ -1154,12 +1437,14 @@ jobs:
                   }
               }
 
-              // 4. Inject Share Button, Login Button & Enforce "TechMedha Project" Title
+              // 4. Inject Share Button, Login Button, Enforce Title & Check Shared URL Links
               function ensureStudioEnhancements() {
                   var titleInput = document.querySelector('[class*="project-title-input_title-field_"]');
                   if (titleInput && titleInput.value === 'Scratch Project') {
                       setProjectTitleInput('TechMedha Project');
                   }
+
+                  checkAndLoadSharedProjectFromUrl();
 
                   if (!document.getElementById('tm-custom-share-btn') && titleInput && titleInput.parentElement) {
                       var shareBtn = document.createElement('button');
