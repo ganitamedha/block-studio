@@ -156,7 +156,7 @@ jobs:
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inject Complete UI/UX Theme, Share Modal, Student Login System & Worker Fix
+      - name: Inject Complete UI/UX Theme, Share Modal, Lifetime Student Vault & Worker Fix
         run: |
           cat << 'EOF' > ./build/custom-theme.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
@@ -265,7 +265,7 @@ jobs:
           .tm-share-modal {
               background: #FFFFFF;
               width: 92%;
-              max-width: 480px;
+              max-width: 500px;
               border-radius: 16px;
               border: 2px solid #99F6E4;
               box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
@@ -301,7 +301,7 @@ jobs:
               display: flex;
               flex-direction: column;
               gap: 12px;
-              max-height: 78vh;
+              max-height: 80vh;
               overflow-y: auto;
           }
 
@@ -324,6 +324,70 @@ jobs:
               font-weight: 600;
               color: #1E293B;
               background: #F0FDFA;
+          }
+
+          .tm-passcode-row {
+              display: flex;
+              gap: 8px;
+              align-items: stretch;
+          }
+
+          .tm-passcode-input {
+              letter-spacing: 3px;
+              font-size: 16px !important;
+              font-weight: 800 !important;
+              text-transform: uppercase;
+              text-align: center;
+              background: #FFFFFF !important;
+              border: 2px solid #0284C7 !important;
+          }
+
+          .tm-gen-btn {
+              background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+              color: #FFFFFF;
+              border: none;
+              border-radius: 10px;
+              padding: 0 14px;
+              font-size: 12px;
+              font-weight: 700;
+              cursor: pointer;
+              white-space: nowrap;
+              transition: transform 0.12s ease;
+          }
+
+          .tm-gen-btn:hover {
+              transform: translateY(-1px);
+          }
+
+          .tm-hint-box {
+              font-size: 11.5px;
+              color: #475569;
+              background: #E6FFFA;
+              border: 1px solid #99F6E4;
+              border-radius: 8px;
+              padding: 8px 10px;
+              line-height: 1.4;
+          }
+
+          .tm-profile-summary {
+              background: #F0FDFA;
+              border: 1.5px solid #99F6E4;
+              border-radius: 10px;
+              padding: 10px 14px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              font-size: 12.5px;
+          }
+
+          .tm-passcode-badge {
+              background: #0284C7;
+              color: #FFFFFF;
+              padding: 4px 10px;
+              border-radius: 8px;
+              font-weight: 800;
+              letter-spacing: 1.5px;
+              font-size: 13px;
           }
 
           .tm-share-action-btn {
@@ -352,7 +416,7 @@ jobs:
               display: flex;
               flex-direction: column;
               gap: 8px;
-              max-height: 210px;
+              max-height: 190px;
               overflow-y: auto;
               border: 1.5px solid #CCFBF1;
               border-radius: 10px;
@@ -505,7 +569,7 @@ jobs:
           }
           EOF
 
-          # Worker Fix + Logo Redirect + Default Title Fix + Share Modal + Student Login & Project Vault
+          # Worker Fix + Logo Redirect + Default Title + Share Modal + Lifetime 6-Char Passcode Student Vault
           cat << 'EOF' > ./build/worker-fix.js
           (function () {
               var OriginalWorker = window.Worker;
@@ -537,10 +601,38 @@ jobs:
                   }
               }, true);
 
-              // Helper: Read & Write Current Logged-in Student Profile
+              // Helper: Generate a 6-character Alphanumeric Passcode (e.g., TM4829 or A7K92M)
+              function generateSixCharCode() {
+                  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                  var code = 'TM';
+                  for (var i = 0; i < 4; i++) {
+                      code += chars.charAt(Math.floor(Math.random() * chars.length));
+                  }
+                  return code;
+              }
+
+              // Directory of known student profiles on this browser (keyed by 6-char passcode)
+              function getStudentDirectory() {
+                  try {
+                      var raw = localStorage.getItem('tm_student_directory_v2');
+                      return raw ? JSON.parse(raw) : {};
+                  } catch (e) {
+                      return {};
+                  }
+              }
+
+              function saveToStudentDirectory(profile) {
+                  try {
+                      var dir = getStudentDirectory();
+                      dir[profile.passcode] = profile;
+                      localStorage.setItem('tm_student_directory_v2', JSON.stringify(dir));
+                  } catch (e) {}
+              }
+
+              // Read & Write Current Logged-in Student Profile
               function getCurrentStudent() {
                   try {
-                      var raw = localStorage.getItem('tm_student_profile');
+                      var raw = localStorage.getItem('tm_student_profile_v2');
                       return raw ? JSON.parse(raw) : null;
                   } catch (e) {
                       return null;
@@ -549,9 +641,10 @@ jobs:
 
               function setCurrentStudent(profile) {
                   if (profile) {
-                      localStorage.setItem('tm_student_profile', JSON.stringify(profile));
+                      localStorage.setItem('tm_student_profile_v2', JSON.stringify(profile));
+                      saveToStudentDirectory(profile);
                   } else {
-                      localStorage.removeItem('tm_student_profile');
+                      localStorage.removeItem('tm_student_profile_v2');
                   }
                   updateLoginButtonUI();
               }
@@ -585,6 +678,60 @@ jobs:
                   }, 500);
               }
 
+              // Helper: Download Student ID Card (.PNG) with 6-Char Passcode
+              function downloadStudentIdCard(student) {
+                  var c = document.createElement('canvas');
+                  c.width = 520;
+                  c.height = 300;
+                  var ctx = c.getContext('2d');
+
+                  // Card Background
+                  ctx.fillStyle = '#F0FDFA';
+                  ctx.fillRect(0, 0, 520, 300);
+                  ctx.strokeStyle = '#0D9488';
+                  ctx.lineWidth = 6;
+                  ctx.strokeRect(3, 3, 514, 294);
+
+                  // Top Header Banner
+                  var grad = ctx.createLinearGradient(0, 0, 520, 0);
+                  grad.addColorStop(0, '#0D9488');
+                  grad.addColorStop(1, '#0284C7');
+                  ctx.fillStyle = grad;
+                  ctx.fillRect(0, 0, 520, 68);
+
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.font = 'bold 20px sans-serif';
+                  ctx.fillText('🎓 TECHMEDHA LIFETIME STUDENT ID', 22, 34);
+                  ctx.font = '600 13px sans-serif';
+                  ctx.fillText('www.techmedha.in • Keep this 6-character code safe!', 22, 54);
+
+                  // Details
+                  ctx.fillStyle = '#0F766E';
+                  ctx.font = 'bold 13px sans-serif';
+                  ctx.fillText('STUDENT NAME:', 26, 108);
+                  ctx.fillText('SCHOOL NAME:', 26, 152);
+                  ctx.fillText('AREA / STATE:', 26, 196);
+                  ctx.fillText('6-CHAR VAULT PASSCODE:', 26, 250);
+
+                  ctx.fillStyle = '#1E293B';
+                  ctx.font = 'bold 17px sans-serif';
+                  ctx.fillText(student.name || '', 160, 108);
+                  ctx.font = '600 15px sans-serif';
+                  ctx.fillText(student.school || '', 160, 152);
+                  ctx.fillText(student.area || '', 160, 196);
+
+                  // Passcode Box
+                  ctx.fillStyle = '#0284C7';
+                  ctx.fillRect(225, 224, 150, 38);
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.font = 'bold 21px monospace';
+                  ctx.fillText(student.passcode, 252, 250);
+
+                  c.toBlob(function (blob) {
+                      if (blob) downloadBlob(blob, (student.name || 'Student').replace(/\s+/g, '-') + '-TechMedha-ID.png');
+                  }, 'image/png');
+              }
+
               // IndexedDB Helper for Student's Saved Projects Vault
               function openProjectDB(callback) {
                   var req = indexedDB.open('TechMedhaStudioVault', 1);
@@ -599,13 +746,14 @@ jobs:
                   };
               }
 
-              function saveProjectToStudentVault(studentKey, title, sb3Blob, onDone) {
+              function saveProjectToStudentVault(student, title, sb3Blob, onDone) {
                   openProjectDB(function (db) {
                       var tx = db.transaction('projects', 'readwrite');
                       var store = tx.objectStore('projects');
                       var item = {
-                          id: studentKey + '__' + Date.now(),
-                          studentKey: studentKey,
+                          id: student.key + '__' + Date.now(),
+                          studentKey: student.key,
+                          passcode: student.passcode,
                           title: title,
                           updatedAt: new Date().toLocaleString(),
                           blob: sb3Blob
@@ -617,14 +765,16 @@ jobs:
                   });
               }
 
-              function getStudentProjects(studentKey, onResult) {
+              function getStudentProjects(student, onResult) {
                   openProjectDB(function (db) {
                       var tx = db.transaction('projects', 'readonly');
                       var store = tx.objectStore('projects');
                       var req = store.getAll();
                       req.onsuccess = function () {
                           var all = req.result || [];
-                          var filtered = all.filter(function (p) { return p.studentKey === studentKey; });
+                          var filtered = all.filter(function (p) {
+                              return p.studentKey === student.key || (student.passcode && p.passcode === student.passcode);
+                          });
                           filtered.sort(function (a, b) { return b.id.localeCompare(a.id); });
                           onResult(filtered);
                       };
@@ -647,7 +797,8 @@ jobs:
                   if (existing) existing.remove();
 
                   var student = getCurrentStudent();
-                  var prefilledStudent = student ? (student.name + (student.grade ? ' (' + student.grade + ')' : '')) : '';
+                  var prefilledStudent = student ? student.name : '';
+                  var prefilledSchool = student ? ([student.school, student.area].filter(Boolean).join(', ')) : '';
                   var defaultTitle = getProjectTitle();
 
                   var overlay = document.createElement('div');
@@ -667,7 +818,11 @@ jobs:
                               '</div>' +
                               '<div class="tm-share-field">' +
                                   '<label>Creator / Student Name</label>' +
-                                  '<input type="text" id="tm-share-student" placeholder="Enter your name (e.g., N.V.S.S. Prajwalita)" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                                  '<input type="text" id="tm-share-student" placeholder="Enter your name (e.g., Aarav)" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                              '</div>' +
+                              '<div class="tm-share-field">' +
+                                  '<label>School & Area / State</label>' +
+                                  '<input type="text" id="tm-share-school" placeholder="e.g., Saraswathi Sishu Mandir, Hyderabad" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
                               '</div>' +
                               '<button class="tm-share-action-btn" id="tm-btn-snapshot" style="background: linear-gradient(90deg, #0D9488, #0284C7);">' +
                                   '📸 Download Project Showcase Card (.PNG)' +
@@ -689,6 +844,7 @@ jobs:
                   document.getElementById('tm-btn-snapshot').onclick = function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
                       var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
+                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
 
                       var stageCanvas = document.querySelector('[class*="stage_stage_"] canvas');
                       if (window.vm && window.vm.renderer && typeof window.vm.renderer.draw === 'function') {
@@ -697,32 +853,32 @@ jobs:
 
                       var cardCanvas = document.createElement('canvas');
                       cardCanvas.width = 640;
-                      cardCanvas.height = 520;
+                      cardCanvas.height = 530;
                       var ctx = cardCanvas.getContext('2d');
 
                       ctx.fillStyle = '#F0FDFA';
-                      ctx.fillRect(0, 0, 640, 520);
+                      ctx.fillRect(0, 0, 640, 530);
                       var grad = ctx.createLinearGradient(0, 0, 640, 0);
                       grad.addColorStop(0, '#0D9488');
                       grad.addColorStop(1, '#0284C7');
                       ctx.fillStyle = grad;
-                      ctx.fillRect(0, 0, 640, 72);
+                      ctx.fillRect(0, 0, 640, 80);
 
                       ctx.fillStyle = '#FFFFFF';
-                      ctx.font = 'bold 22px sans-serif';
-                      ctx.fillText(projTitle, 24, 34);
+                      ctx.font = 'bold 21px sans-serif';
+                      ctx.fillText(projTitle, 24, 30);
                       ctx.font = '600 14px sans-serif';
-                      ctx.fillText('Created by: ' + studentName, 24, 56);
+                      ctx.fillText('Creator: ' + studentName + (schoolInfo ? ' • ' + schoolInfo : ''), 24, 56);
 
                       ctx.fillStyle = '#FFFFFF';
-                      ctx.fillRect(76, 90, 488, 368);
+                      ctx.fillRect(76, 96, 488, 368);
                       if (stageCanvas) {
-                          ctx.drawImage(stageCanvas, 80, 94, 480, 360);
+                          ctx.drawImage(stageCanvas, 80, 100, 480, 360);
                       }
 
                       ctx.fillStyle = '#0F766E';
                       ctx.font = 'bold 15px sans-serif';
-                      ctx.fillText('Built with TechMedha Block Coding Studio • www.techmedha.in', 95, 492);
+                      ctx.fillText('Built with TechMedha Block Coding Studio • www.techmedha.in', 95, 502);
 
                       cardCanvas.toBlob(function (blob) {
                           if (blob) downloadBlob(blob, projTitle.replace(/\s+/g, '-') + '-Showcase.png');
@@ -732,6 +888,7 @@ jobs:
                   document.getElementById('tm-btn-native-share').onclick = function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha-Project';
                       var studentName = document.getElementById('tm-share-student').value.trim();
+                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
                       var fileName = projTitle.replace(/\s+/g, '-') + '.sb3';
 
                       if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
@@ -740,7 +897,7 @@ jobs:
                               if (navigator.canShare && navigator.canShare({ files: [file] })) {
                                   navigator.share({
                                       title: projTitle,
-                                      text: 'Check out "' + projTitle + '"' + (studentName ? ' by ' + studentName : '') + ' built on TechMedha Studio (https://www.techmedha.in/)!',
+                                      text: 'Check out "' + projTitle + '"' + (studentName ? ' by ' + studentName : '') + (schoolInfo ? ' (' + schoolInfo + ')' : '') + ' built on TechMedha Studio (https://www.techmedha.in/)!',
                                       files: [file]
                                   }).catch(function () {
                                       downloadBlob(blob, fileName);
@@ -755,14 +912,16 @@ jobs:
                   document.getElementById('tm-btn-whatsapp').onclick = function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
                       var studentName = document.getElementById('tm-share-student').value.trim();
+                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
                       var msg = '🌟 Check out the coding project *"' + projTitle + '"*' +
                           (studentName ? ' created by *' + studentName + '*' : '') +
+                          (schoolInfo ? ' (' + schoolInfo + ')' : '') +
                           ' on TechMedha Block Coding Studio! 🚀\nhttps://www.techmedha.in/';
                       window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
                   };
               }
 
-              // 3. Open Student Login & "My Saved Projects" Account Modal
+              // 3. Open Lifetime Student Login & "My Saved Projects" Vault Modal
               function openLoginModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -773,28 +932,38 @@ jobs:
                   overlay.className = 'tm-share-overlay';
 
                   if (!student) {
-                      // View A: Sign In Form
+                      // View A: Lifetime Student Sign-In / Registration Form (No Class or Roll No.)
                       overlay.innerHTML =
                           '<div class="tm-share-modal">' +
                               '<div class="tm-share-modal-header">' +
-                                  '<span>🎓 TechMedha Student Sign In</span>' +
+                                  '<span>🎓 TechMedha Lifetime Student Vault</span>' +
                                   '<button class="tm-share-close-btn" id="tm-login-close">✕</button>' +
                               '</div>' +
                               '<div class="tm-share-modal-body">' +
                                   '<div class="tm-share-field">' +
+                                      '<label>6-Character Passcode / Secret ID * (Custom or Generate)</label>' +
+                                      '<div class="tm-passcode-row">' +
+                                          '<input type="text" id="tm-login-passcode" class="tm-passcode-input" maxlength="6" placeholder="e.g. TM4829" />' +
+                                          '<button type="button" class="tm-gen-btn" id="tm-btn-gen-code">🎲 Auto-Generate</button>' +
+                                      '</div>' +
+                                  '</div>' +
+                                  '<div class="tm-hint-box">' +
+                                      '💡 <b>Returning Student?</b> Type your 6-character code above to auto-fill your details! <b>New Student?</b> Type any 6-digit/letter code or click <b>Auto-Generate</b>.' +
+                                  '</div>' +
+                                  '<div class="tm-share-field">' +
                                       '<label>Student Full Name *</label>' +
-                                      '<input type="text" id="tm-login-name" placeholder="e.g., M.V.S.S. Mokshagna" />' +
+                                      '<input type="text" id="tm-login-name" placeholder="e.g., Aarav Sharma" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>Class / Grade *</label>' +
-                                      '<input type="text" id="tm-login-grade" placeholder="e.g., Class 9" />' +
+                                      '<label>School Name *</label>' +
+                                      '<input type="text" id="tm-login-school" placeholder="e.g., Sri Saraswathi Sishu Mandir" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>Roll No. / Student ID (Optional)</label>' +
-                                      '<input type="text" id="tm-login-roll" placeholder="e.g., Roll No. 14" />' +
+                                      '<label>Area / State *</label>' +
+                                      '<input type="text" id="tm-login-area" placeholder="e.g., Hyderabad, Telangana" />' +
                                   '</div>' +
-                                  '<button class="tm-share-action-btn" id="tm-btn-do-login" style="background: linear-gradient(90deg, #0D9488, #0284C7); margin-top: 6px;">' +
-                                      '✅ Sign In to My Studio Account' +
+                                  '<button class="tm-share-action-btn" id="tm-btn-do-login" style="background: linear-gradient(90deg, #0D9488, #0284C7); margin-top: 4px;">' +
+                                      '🔓 Open My Lifetime Project Vault' +
                                   '</button>' +
                               '</div>' +
                           '</div>';
@@ -803,36 +972,98 @@ jobs:
                       document.getElementById('tm-login-close').onclick = function () { overlay.remove(); };
                       overlay.onclick = function (ev) { if (ev.target === overlay) overlay.remove(); };
 
+                      var passInput = document.getElementById('tm-login-passcode');
+                      var nameInput = document.getElementById('tm-login-name');
+                      var schoolInput = document.getElementById('tm-login-school');
+                      var areaInput = document.getElementById('tm-login-area');
+
+                      // Auto-fill if the 6-character code already exists in this browser's student directory
+                      passInput.oninput = function () {
+                          var clean = passInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+                          if (passInput.value !== clean) passInput.value = clean;
+                          if (clean.length === 6) {
+                              var dir = getStudentDirectory();
+                              if (dir[clean]) {
+                                  if (!nameInput.value) nameInput.value = dir[clean].name || '';
+                                  if (!schoolInput.value) schoolInput.value = dir[clean].school || '';
+                                  if (!areaInput.value) areaInput.value = dir[clean].area || '';
+                              }
+                          }
+                      };
+
+                      // System-Generated 6-Character Code Button
+                      document.getElementById('tm-btn-gen-code').onclick = function () {
+                          var dir = getStudentDirectory();
+                          var newCode = generateSixCharCode();
+                          while (dir[newCode]) {
+                              newCode = generateSixCharCode();
+                          }
+                          passInput.value = newCode;
+                      };
+
                       document.getElementById('tm-btn-do-login').onclick = function () {
-                          var name = document.getElementById('tm-login-name').value.trim();
-                          var grade = document.getElementById('tm-login-grade').value.trim();
-                          var roll = document.getElementById('tm-login-roll').value.trim();
-                          if (!name) {
-                              alert('Please enter your Student Name to sign in.');
+                          var passcode = passInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+                          var name = nameInput.value.trim();
+                          var school = schoolInput.value.trim();
+                          var area = areaInput.value.trim();
+
+                          if (passcode.length !== 6) {
+                              alert('Please enter a 6-character Passcode (letters/numbers) or click "Auto-Generate".');
                               return;
                           }
-                          var studentKey = (name + '_' + grade + '_' + roll).toLowerCase().replace(/\s+/g, '_');
-                          setCurrentStudent({ name: name, grade: grade || 'Student', roll: roll, key: studentKey });
+                          if (!name) {
+                              alert('Please enter your Student Full Name.');
+                              return;
+                          }
+                          if (!school) {
+                              alert('Please enter your School Name.');
+                              return;
+                          }
+
+                          // Vault key is anchored to their 6-character code so changing classes never resets their projects
+                          var studentKey = 'vault_' + passcode;
+                          setCurrentStudent({
+                              name: name,
+                              school: school,
+                              area: area || 'India',
+                              passcode: passcode,
+                              key: studentKey
+                          });
                           overlay.remove();
                           openLoginModal();
                       };
                   } else {
-                      // View B: Logged-In Student Dashboard & Saved Projects Vault
+                      // View B: Logged-In Student Lifetime Vault Dashboard
                       overlay.innerHTML =
                           '<div class="tm-share-modal">' +
                               '<div class="tm-share-modal-header">' +
-                                  '<span>🎓 ' + student.name + ' (' + student.grade + ')</span>' +
+                                  '<span>🎓 ' + student.name + '</span>' +
                                   '<button class="tm-share-close-btn" id="tm-login-close">✕</button>' +
                               '</div>' +
                               '<div class="tm-share-modal-body">' +
-                                  '<button class="tm-share-action-btn" id="tm-btn-save-vault" style="background: linear-gradient(90deg, #059669, #0D9488);">' +
-                                      '💾 Save Current Project to My Account' +
-                                  '</button>' +
+                                  '<div class="tm-profile-summary">' +
+                                      '<div>' +
+                                          '<div style="font-weight:700;color:#0F766E;">🏫 ' + (student.school || '') + '</div>' +
+                                          '<div style="color:#475569;font-size:11.5px;">📍 ' + (student.area || '') + '</div>' +
+                                      '</div>' +
+                                      '<div style="text-align:right;">' +
+                                          '<div style="font-size:10px;font-weight:700;color:#64748B;">PASSCODE</div>' +
+                                          '<div class="tm-passcode-badge">' + (student.passcode || '') + '</div>' +
+                                      '</div>' +
+                                  '</div>' +
+                                  '<div style="display:flex;gap:8px;">' +
+                                      '<button class="tm-share-action-btn" id="tm-btn-save-vault" style="background: linear-gradient(90deg, #059669, #0D9488); flex: 1.4;">' +
+                                          '💾 Save Project to Vault' +
+                                      '</button>' +
+                                      '<button class="tm-share-action-btn" id="tm-btn-id-card" style="background: #0284C7; flex: 1;">' +
+                                          '🪪 Save ID Card' +
+                                      '</button>' +
+                                  '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>📂 My Saved Projects (In This Browser)</label>' +
+                                      '<label>📂 My Lifetime Saved Projects</label>' +
                                       '<div class="tm-project-list" id="tm-vault-list">Loading your projects...</div>' +
                                   '</div>' +
-                                  '<button class="tm-share-action-btn" id="tm-btn-logout" style="background: #E11D48; margin-top: 4px;">' +
+                                  '<button class="tm-share-action-btn" id="tm-btn-logout" style="background: #E11D48; margin-top: 2px;">' +
                                       '🚪 Sign Out / Switch Student' +
                                   '</button>' +
                               '</div>' +
@@ -845,9 +1076,9 @@ jobs:
                       function renderVaultList() {
                           var listEl = document.getElementById('tm-vault-list');
                           if (!listEl) return;
-                          getStudentProjects(student.key, function (items) {
+                          getStudentProjects(student, function (items) {
                               if (!items.length) {
-                                  listEl.innerHTML = '<div style="text-align:center;color:#64748B;padding:12px;">No saved projects yet. Click "Save Current Project" above!</div>';
+                                  listEl.innerHTML = '<div style="text-align:center;color:#64748B;padding:12px;">No saved projects yet. Click "Save Project to Vault" above!</div>';
                                   return;
                               }
                               listEl.innerHTML = '';
@@ -892,11 +1123,15 @@ jobs:
                           var title = getProjectTitle();
                           if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
                               window.vm.saveProjectSb3().then(function (blob) {
-                                  saveProjectToStudentVault(student.key, title, blob, function () {
+                                  saveProjectToStudentVault(student, title, blob, function () {
                                       renderVaultList();
                                   });
                               });
                           }
+                      };
+
+                      document.getElementById('tm-btn-id-card').onclick = function () {
+                          downloadStudentIdCard(student);
                       };
 
                       document.getElementById('tm-btn-logout').onclick = function () {
@@ -912,7 +1147,7 @@ jobs:
                   var student = getCurrentStudent();
                   if (student) {
                       loginBtn.className = 'tm-login-header-btn logged-in';
-                      loginBtn.innerHTML = '<span>🎓 ' + student.name + (student.grade ? ' (' + student.grade + ')' : '') + ' ▾</span>';
+                      loginBtn.innerHTML = '<span>🎓 ' + student.name + ' [' + (student.passcode || '') + '] ▾</span>';
                   } else {
                       loginBtn.className = 'tm-login-header-btn';
                       loginBtn.innerHTML = '<span>👤 Student Login</span>';
