@@ -667,7 +667,7 @@ jobs:
                               '</div>' +
                               '<div class="tm-share-field">' +
                                   '<label>Creator / Student Name</label>' +
-                                  '<input type="text" id="tm-share-student" placeholder="Enter your name (e.g., Aarav)" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                                  '<input type="text" id="tm-share-student" placeholder="Enter your name (e.g., N.V.S.S. Prajwalita)" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
                               '</div>' +
                               '<button class="tm-share-action-btn" id="tm-btn-snapshot" style="background: linear-gradient(90deg, #0D9488, #0284C7);">' +
                                   '📸 Download Project Showcase Card (.PNG)' +
@@ -783,11 +783,11 @@ jobs:
                               '<div class="tm-share-modal-body">' +
                                   '<div class="tm-share-field">' +
                                       '<label>Student Full Name *</label>' +
-                                      '<input type="text" id="tm-login-name" placeholder="e.g., Aarav Sharma" />' +
+                                      '<input type="text" id="tm-login-name" placeholder="e.g., M.V.S.S. Mokshagna" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>Class / Grade *</label>' +
-                                      '<input type="text" id="tm-login-grade" placeholder="e.g., Class 6" />' +
+                                      '<input type="text" id="tm-login-grade" placeholder="e.g., Class 9" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>Roll No. / Student ID (Optional)</label>' +
