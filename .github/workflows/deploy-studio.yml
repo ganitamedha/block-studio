@@ -39,32 +39,42 @@ jobs:
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
 
-      - name: Restore Core Files (Keep Custom Logo & Mascot), Hook VM & Patch Block Colors
+      - name: Restore Core Files (Keep TechMedha Logo & Mascot), Hook VM & Patch Block Colors
         run: |
           # 1. Restore core files WITHOUT touching src/components/menu-bar (preserves your TechMedha logo & MedhaBot mascot)
           git remote add upstream https://github.com/scratchfoundation/scratch-gui.git || true
           git fetch upstream develop --depth=1
-          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js src/lib/vm-listener-hoc.jsx
+          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js src/lib/vm-listener-hoc.jsx src/lib/vm-manager-hoc.jsx
 
-          # 2. Hook Scratch VM in both vm.js reducer and vm-listener-hoc.jsx so window.vm is always accessible
-          sed -i 's/new VM()/(window.vm = new VM())/g' src/reducers/vm.js || true
-          sed -i 's/this.props.vm.attachV2SVGAdapter/(window.vm = this.props.vm) \&\& this.props.vm.attachV2SVGAdapter/g' src/lib/vm-listener-hoc.jsx || true
-
-          # 3. Enable preserveDrawingBuffer in scratch-render so Showcase Card stage screenshots are never blank
+          # 2. Enable preserveDrawingBuffer in scratch-render so Showcase Card stage screenshots are never blank
           find node_modules/scratch-render -type f -name "*.js" -exec sed -i 's/preserveDrawingBuffer: false/preserveDrawingBuffer: true/g' {} + || true
           find node_modules/scratch-render -type f -name "*.js" -exec sed -i 's/preserveDrawingBuffer:!1/preserveDrawingBuffer:!0/g' {} + || true
 
-          # 4. Remove disabled MIT placeholders & point logo to https://www.techmedha.in/
+          # 3. Remove disabled MIT placeholders, point top-left logo to https://www.techmedha.in/, and disable bottom Backpack bar
           sed -i 's/showComingSoon//g' src/playground/render-gui.jsx || true
           sed -i 's|https://scratch.mit.edu|https://www.techmedha.in/|g' src/playground/render-gui.jsx || true
-
-          # 5. Disable the bottom Backpack bar cleanly in gui.jsx
           sed -i 's/backpackVisible ?/false ?/g' src/components/gui/gui.jsx || true
 
-          # 6. Patch all 9 Block Categories AND replace "Scratch Project" with "TechMedha Project"
+          # 4. Hook Scratch VM reliably, patch all 9 Block Categories, and replace "Scratch Project"
           cat << 'EOF' > /tmp/patch-studio.cjs
           const fs = require('fs');
           const path = require('path');
+
+          // Hook defaultVM in src/reducers/vm.js so window.vm is always available immediately
+          const vmReducerPath = 'src/reducers/vm.js';
+          if (fs.existsSync(vmReducerPath)) {
+              let vmCode = fs.readFileSync(vmReducerPath, 'utf8');
+              vmCode = vmCode.replace('const defaultVM = new VM();', 'const defaultVM = new VM(); window.vm = defaultVM;');
+              fs.writeFileSync(vmReducerPath, vmCode, 'utf8');
+          }
+
+          // Hook this.props.vm in src/lib/vm-manager-hoc.jsx as secondary guarantee
+          const vmManagerPath = 'src/lib/vm-manager-hoc.jsx';
+          if (fs.existsSync(vmManagerPath)) {
+              let vmmCode = fs.readFileSync(vmManagerPath, 'utf8');
+              vmmCode = vmmCode.replace('componentDidMount () {', 'componentDidMount () { window.vm = this.props.vm;');
+              fs.writeFileSync(vmManagerPath, vmmCode, 'utf8');
+          }
 
           const colorMap = {
               // 1. MOTION (Electric Cobalt Blue)
@@ -136,14 +146,12 @@ jobs:
           walkAndPatch('node_modules/scratch-l10n', true);
           walkAndPatch('node_modules/scratch-blocks', false);
           walkAndPatch('node_modules/scratch-vm', false);
-          console.log('Successfully patched default project title and all 9 block categories.');
+          console.log('Successfully hooked VM, preserved TechMedha logo, and patched all 9 block categories.');
           EOF
           node /tmp/patch-studio.cjs
 
       - name: Prepare UI/UX Theme, Short-Link QR Engine, Project Resumer & Student Vault
         run: |
-          BUILD_STAMP="$(date -u '+%Y-%m-%d %H:%M UTC') (Run #${GITHUB_RUN_NUMBER})"
-
           cat << 'EOF' > /tmp/tm-studio-bundle.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
 
@@ -173,7 +181,7 @@ jobs:
               font-family: 'Poppins', 'Nunito', sans-serif !important;
           }
 
-          /* Top Header Menu Bar Gradient & Clickable Logo */
+          /* Top Header Menu Bar Gradient & Clickable TechMedha Logo */
           [class*="menu-bar_menu-bar"] {
               background: linear-gradient(90deg, var(--tm-header-start) 0%, var(--tm-header-end) 100%) !important;
               border-bottom: 2px solid #0F766E !important;
@@ -191,7 +199,7 @@ jobs:
               transform: scale(1.05);
           }
 
-          /* Top-Right Studio Toolbar (Share + Login + Debug) */
+          /* Top-Right Studio Toolbar (Share + Student Login Only) */
           #tm-header-controls {
               position: fixed !important;
               top: 7px !important;
@@ -205,8 +213,7 @@ jobs:
           }
 
           .tm-share-header-btn,
-          .tm-login-header-btn,
-          .tm-debug-header-btn {
+          .tm-login-header-btn {
               display: inline-flex !important;
               align-items: center !important;
               justify-content: center !important;
@@ -247,12 +254,6 @@ jobs:
           .tm-login-header-btn.logged-in {
               background: linear-gradient(135deg, #059669 0%, #0D9488 100%) !important;
               border-color: #A7F3D0 !important;
-          }
-
-          .tm-debug-header-btn {
-              padding: 5px 10px !important;
-              background: rgba(15, 23, 42, 0.28) !important;
-              font-size: 12px !important;
           }
 
           /* Modal Overlay & Cards */
@@ -516,20 +517,6 @@ jobs:
               margin-left: 4px;
           }
 
-          .tm-debug-row {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              padding: 7px 10px;
-              background: #F8FAFC;
-              border: 1px solid #E2E8F0;
-              border-radius: 8px;
-              font-size: 12.5px;
-          }
-
-          .tm-debug-ok { color: #059669; font-weight: 700; }
-          .tm-debug-warn { color: #D97706; font-weight: 700; }
-
           /* Main Workspace & Code / Costumes / Sounds Tabs */
           [class*="gui_body-wrapper"] {
               background-color: var(--tm-workspace-bg) !important;
@@ -643,32 +630,17 @@ jobs:
           }
           EOF
 
-          cat << EOF > /tmp/tm-build-meta.js
-          window.TM_BUILD_STAMP = "${BUILD_STAMP}";
-          EOF
-
-          cat << 'EOF' > /tmp/tm-studio-core.js
+          cat << 'EOF' > /tmp/tm-studio-bundle.js
           (function () {
               if (window.__TM_STUDIO_INITIALIZED__) return;
               window.__TM_STUDIO_INITIALIZED__ = true;
 
-              var debugLogs = [];
-              function logDebug(msg) {
-                  var entry = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-                  debugLogs.push(entry);
-                  console.log('%c[TechMedha Studio]', 'color:#0D9488;font-weight:bold;', msg);
-              }
-              logDebug('Initializing TechMedha Studio (' + (window.TM_BUILD_STAMP || 'Live') + ')');
-
               // 1. Subfolder Web Worker Path Fix for Sprites, Backdrops, Costumes & Sounds
-              var workerFixCount = 0;
               var OriginalWorker = window.Worker;
               window.Worker = function (scriptURL, options) {
                   var urlStr = String(scriptURL);
                   if (urlStr.indexOf('/chunks/') !== -1 && urlStr.indexOf('/block-studio/chunks/') === -1) {
                       urlStr = urlStr.replace('/chunks/', '/block-studio/chunks/');
-                      workerFixCount++;
-                      logDebug('Routed FetchWorker to subfolder: ' + urlStr);
                   }
                   return new OriginalWorker(urlStr, options);
               };
@@ -680,47 +652,10 @@ jobs:
                   var s = document.createElement('script');
                   s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
                   s.async = true;
-                  s.onload = function () { logDebug('QRious QR Code engine ready.'); };
                   document.head.appendChild(s);
               })();
 
-              // 3. Guaranteed Scratch VM Finder (window.vm + React Fiber fallback)
-              function getScratchVM() {
-                  if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
-                      return window.vm;
-                  }
-                  var rootEl = document.getElementById('app') || document.body;
-                  if (!rootEl) return null;
-                  var walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT, null, false);
-                  var node;
-                  while ((node = walker.nextNode())) {
-                      var keys = Object.keys(node);
-                      for (var i = 0; i < keys.length; i++) {
-                          var k = keys[i];
-                          if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0) {
-                              var fiber = node[k];
-                              var depth = 0;
-                              while (fiber && depth < 15) {
-                                  if (fiber.memoizedProps && fiber.memoizedProps.vm && typeof fiber.memoizedProps.vm.saveProjectSb3 === 'function') {
-                                      window.vm = fiber.memoizedProps.vm;
-                                      logDebug('Connected to Scratch VM via React Fiber.');
-                                      return window.vm;
-                                  }
-                                  if (fiber.stateNode && fiber.stateNode.props && fiber.stateNode.props.vm && typeof fiber.stateNode.props.vm.saveProjectSb3 === 'function') {
-                                      window.vm = fiber.stateNode.props.vm;
-                                      logDebug('Connected to Scratch VM via React StateNode.');
-                                      return window.vm;
-                                  }
-                                  fiber = fiber.return;
-                                  depth++;
-                              }
-                          }
-                      }
-                  }
-                  return null;
-              }
-
-              // 4. Redirect top-left Logo Click to https://www.techmedha.in/
+              // 3. Redirect Top-Left TechMedha Logo Click to https://www.techmedha.in/
               document.addEventListener('click', function (e) {
                   var logo = e.target && e.target.closest && e.target.closest('[class*="scratch-logo"]');
                   if (logo) {
@@ -738,6 +673,40 @@ jobs:
                       }
                   }
               }, true);
+
+              // 4. Guaranteed Scratch VM Finder
+              function getScratchVM() {
+                  if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
+                      return window.vm;
+                  }
+                  var rootEl = document.getElementById('app') || document.body;
+                  if (!rootEl) return null;
+                  var walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT, null, false);
+                  var node;
+                  while ((node = walker.nextNode())) {
+                      var keys = Object.keys(node);
+                      for (var i = 0; i < keys.length; i++) {
+                          var k = keys[i];
+                          if (k.indexOf('__reactFiber') === 0 || k.indexOf('__reactInternalInstance') === 0) {
+                              var fiber = node[k];
+                              var depth = 0;
+                              while (fiber && depth < 15) {
+                                  if (fiber.memoizedProps && fiber.memoizedProps.vm && typeof fiber.memoizedProps.vm.saveProjectSb3 === 'function') {
+                                      window.vm = fiber.memoizedProps.vm;
+                                      return window.vm;
+                                  }
+                                  if (fiber.stateNode && fiber.stateNode.props && fiber.stateNode.props.vm && typeof fiber.stateNode.props.vm.saveProjectSb3 === 'function') {
+                                      window.vm = fiber.stateNode.props.vm;
+                                      return window.vm;
+                                  }
+                                  fiber = fiber.return;
+                                  depth++;
+                              }
+                          }
+                      }
+                  }
+                  return null;
+              }
 
               function showToast(msg, durationMs) {
                   var old = document.getElementById('tm-toast-banner');
@@ -831,7 +800,6 @@ jobs:
                   }, 500);
               }
 
-              // Binary Blob <-> Base64 helpers for Cloud .SB3 Packaging
               function blobToBase64(blob) {
                   return new Promise(function (resolve, reject) {
                       var reader = new FileReader();
@@ -845,19 +813,19 @@ jobs:
                   });
               }
 
-              function base64ToArrayBuffer(b64) {
+              function base64ToUint8Array(b64) {
                   var binStr = atob(b64.replace(/\s+/g, ''));
                   var len = binStr.length;
                   var bytes = new Uint8Array(len);
                   for (var i = 0; i < len; i++) {
                       bytes[i] = binStr.charCodeAt(i);
                   }
-                  return bytes.buffer;
+                  return bytes;
               }
 
-              // IndexedDB Helper for Student Vault & Local Short-Link Cache
+              // IndexedDB + localStorage Dual Helper for Student Vault & Short-Link Cache
               function openProjectDB(callback) {
-                  var req = indexedDB.open('TechMedhaStudioVault', 2);
+                  var req = indexedDB.open('TechMedhaStudioVault', 3);
                   req.onupgradeneeded = function (e) {
                       var db = e.target.result;
                       if (!db.objectStoreNames.contains('projects')) {
@@ -874,16 +842,26 @@ jobs:
 
               function saveLocalShareBackup(code, payloadStr) {
                   try {
+                      localStorage.setItem('tm_share_' + code, payloadStr);
+                  } catch (e) {}
+                  try {
                       openProjectDB(function (db) {
                           if (!db.objectStoreNames.contains('shares')) return;
                           var tx = db.transaction('shares', 'readwrite');
                           tx.objectStore('shares').put({ code: code, payload: payloadStr });
                       });
-                  } catch (e) {}
+                  } catch (e2) {}
               }
 
               function getLocalShareBackup(code) {
                   return new Promise(function (resolve) {
+                      try {
+                          var ls = localStorage.getItem('tm_share_' + code);
+                          if (ls) {
+                              resolve(ls);
+                              return;
+                          }
+                      } catch (e) {}
                       try {
                           openProjectDB(function (db) {
                               if (!db.objectStoreNames.contains('shares')) {
@@ -897,32 +875,42 @@ jobs:
                               };
                               req.onerror = function () { resolve(null); };
                           });
-                      } catch (e) {
+                      } catch (e2) {
                           resolve(null);
                       }
                   });
               }
 
-              // 5. Multi-Provider Short Shareable Link Generator (Always produces a short ~54-char URL)
+              // 5. Short Shareable Link Generator (Strictly Short ?s=KEY - Never Generates a Paragraph)
               async function createShareableProjectLink(projTitle, studentName, schoolInfo) {
                   var baseUrl = window.location.origin + window.location.pathname;
                   var vm = getScratchVM();
-                  if (!vm || typeof vm.saveProjectSb3 !== 'function') {
-                      logDebug('Cannot create share link: VM not connected.');
-                      return baseUrl;
-                  }
+                  if (!vm) return baseUrl;
 
-                  var sb3Blob = await vm.saveProjectSb3();
-                  var sb3B64 = await blobToBase64(sb3Blob);
+                  var sb3B64 = '';
+                  var jsonStr = '';
+                  try {
+                      if (typeof vm.saveProjectSb3 === 'function') {
+                          var sb3Blob = await vm.saveProjectSb3();
+                          sb3B64 = await blobToBase64(sb3Blob);
+                      }
+                  } catch (errSb3) {}
+                  try {
+                      if (typeof vm.toJSON === 'function') {
+                          jsonStr = vm.toJSON();
+                      }
+                  } catch (errJson) {}
+
                   var payloadStr = JSON.stringify({
-                      v: 2,
+                      v: 3,
                       t: projTitle || 'TechMedha Project',
-                      by: studentName || '',
-                      sc: schoolInfo || '',
-                      sb3: sb3B64
+                      by: studentName || 'M.V.S.S. Mokshagna',
+                      sc: schoolInfo || 'Techmedha High School, Dilsukhnagar, Hyderabad, TS',
+                      sb3: sb3B64,
+                      json: jsonStr
                   });
 
-                  // Provider 1: Bytebin (CORS Simple Request using text/plain - no preflight failure)
+                  // Provider 1: Bytebin (CORS Simple Request using text/plain)
                   try {
                       var r1 = await fetch('https://bytebin.lucko.me/post', {
                           method: 'POST',
@@ -934,13 +922,10 @@ jobs:
                           if (d1 && d1.key) {
                               var code1 = 'b_' + d1.key;
                               saveLocalShareBackup(code1, payloadStr);
-                              logDebug('Created short share link via Provider 1 (' + code1 + ')');
-                              return baseUrl + '?p=' + encodeURIComponent(code1);
+                              return baseUrl + '?s=' + encodeURIComponent(code1);
                           }
                       }
-                  } catch (e1) {
-                      logDebug('Provider 1 notice: ' + e1.message);
-                  }
+                  } catch (e1) {}
 
                   // Provider 2: pastes.dev API (CORS Simple Request using text/plain)
                   try {
@@ -954,48 +939,40 @@ jobs:
                           if (d2 && d2.key) {
                               var code2 = 'p_' + d2.key;
                               saveLocalShareBackup(code2, payloadStr);
-                              logDebug('Created short share link via Provider 2 (' + code2 + ')');
-                              return baseUrl + '?p=' + encodeURIComponent(code2);
+                              return baseUrl + '?s=' + encodeURIComponent(code2);
                           }
                       }
-                  } catch (e2) {
-                      logDebug('Provider 2 notice: ' + e2.message);
-                  }
+                  } catch (e2) {}
 
-                  // Provider 3: dpaste API v2 (CORS Simple Request using form-urlencoded)
+                  // Provider 3: JSONBlob API
                   try {
-                      var formBody = new URLSearchParams();
-                      formBody.append('content', payloadStr);
-                      formBody.append('syntax', 'text');
-                      formBody.append('expiry_days', '365');
-                      var r3 = await fetch('https://dpaste.com/api/v2/', {
+                      var r3 = await fetch('https://jsonblob.com/api/jsonBlob', {
                           method: 'POST',
-                          body: formBody
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'Accept': 'application/json'
+                          },
+                          body: payloadStr
                       });
-                      if (r3.ok) {
-                          var txtUrl = (await r3.text()).trim();
-                          var m = txtUrl.match(/dpaste\.com\/([A-Za-z0-9]+)/);
-                          if (m && m[1]) {
-                              var code3 = 'd_' + m[1];
+                      if (r3.ok || r3.status === 201) {
+                          var loc = r3.headers.get('Location') || r3.headers.get('location') || r3.headers.get('X-jsonblob') || '';
+                          var parts = loc.split('/');
+                          var jbId = parts[parts.length - 1];
+                          if (jbId) {
+                              var code3 = 'j_' + jbId;
                               saveLocalShareBackup(code3, payloadStr);
-                              logDebug('Created short share link via Provider 3 (' + code3 + ')');
-                              return baseUrl + '?p=' + encodeURIComponent(code3);
+                              return baseUrl + '?s=' + encodeURIComponent(code3);
                           }
                       }
-                  } catch (e3) {
-                      logDebug('Provider 3 notice: ' + e3.message);
-                  }
+                  } catch (e3) {}
 
-                  // Offline / Local Lab Fallback: Short 6-char code stored in browser IndexedDB
-                  var localCode = 'l_' + generateSixCharCode();
+                  // Guaranteed Short Local Vault Key (Never outputs a long paragraph URL)
+                  var localCode = 'L_' + generateSixCharCode();
                   saveLocalShareBackup(localCode, payloadStr);
-                  logDebug('Created local short share link (' + localCode + ')');
-                  return baseUrl + '?p=' + encodeURIComponent(localCode);
+                  return baseUrl + '?s=' + encodeURIComponent(localCode);
               }
 
-              // Fetch Shared Project Payload by Short Code (p=b_xxx, p=p_xxx, p=d_xxx, or p=l_xxx)
               async function fetchSharedPayload(shortCode) {
-                  // Check local IndexedDB backup first for instant zero-latency load if on same device
                   var localData = await getLocalShareBackup(shortCode);
                   if (localData) {
                       return JSON.parse(localData);
@@ -1009,8 +986,8 @@ jobs:
                       url = 'https://bytebin.lucko.me/' + encodeURIComponent(rawKey);
                   } else if (prefix === 'p_') {
                       url = 'https://api.pastes.dev/' + encodeURIComponent(rawKey);
-                  } else if (prefix === 'd_') {
-                      url = 'https://dpaste.com/' + encodeURIComponent(rawKey) + '.txt';
+                  } else if (prefix === 'j_') {
+                      url = 'https://jsonblob.com/api/jsonBlob/' + encodeURIComponent(rawKey);
                   } else {
                       url = 'https://bytebin.lucko.me/' + encodeURIComponent(shortCode);
                   }
@@ -1021,7 +998,6 @@ jobs:
                   return JSON.parse(text);
               }
 
-              // Helper: Activate First Sprite Target & Refresh Blockly Workspace After Loading a Project
               function activateLoadedProjectWorkspace(vm, titleText) {
                   try {
                       if (titleText) {
@@ -1038,6 +1014,9 @@ jobs:
                           if (spriteTarget && typeof vm.setEditingTarget === 'function') {
                               vm.setEditingTarget(spriteTarget.id);
                           }
+                          if (typeof vm.emitTargetsUpdate === 'function') {
+                              vm.emitTargetsUpdate();
+                          }
                           if (typeof vm.emitWorkspaceUpdate === 'function') {
                               vm.emitWorkspaceUpdate();
                           }
@@ -1048,67 +1027,72 @@ jobs:
                               vm.renderer.draw();
                           }
                       }
-                  } catch (e) {
-                      logDebug('Workspace refresh notice: ' + e.message);
-                  }
+                  } catch (e) {}
               }
 
-              // 6. Reliable Shared Project Resumer (Waits for Scratch Startup Screen to Close Before Loading)
-              var sharedLoadState = 'idle'; // 'idle' | 'loading' | 'done'
-              var cachedSharedBuffer = null;
+              // 6. Reliable Shared Project Resumer in New Browser Tab & QR Scan
+              var sharedLoadState = 'idle';
               var cachedSharedMeta = null;
 
               async function checkAndLoadSharedProjectFromUrl() {
                   if (sharedLoadState !== 'idle') return;
 
                   var params = new URLSearchParams(window.location.search);
-                  var shortCode = params.get('p') || params.get('s');
+                  var shortCode = params.get('s') || params.get('p');
                   if (!shortCode) {
                       sharedLoadState = 'done';
                       return;
                   }
 
-                  // Wait until Scratch's initial loading screen is gone AND VM has finished its default startup load
                   var loaderOverlay = document.querySelector('[class*="loader_background"]');
-                  var vm = getScratchVM();
+                  var blocklySvg = document.querySelector('.blocklySvg');
                   var stageCanvas = document.querySelector('[class*="stage_stage"] canvas');
-                  if (loaderOverlay || !vm || !stageCanvas || !vm.runtime || !vm.runtime.targets || vm.runtime.targets.length === 0) {
+                  var vm = getScratchVM();
+
+                  if (loaderOverlay || !blocklySvg || !stageCanvas || !vm || !vm.runtime || !vm.runtime.targets || vm.runtime.targets.length === 0) {
                       return;
                   }
 
                   sharedLoadState = 'loading';
-                  logDebug('Detected shared project code in URL: ' + shortCode);
-                  showToast('⏳ Resuming shared project... Please wait', 8000);
+                  showToast('⏳ Loading shared project "' + shortCode + '"...', 8000);
 
                   try {
                       var payload = await fetchSharedPayload(shortCode);
-                      if (payload && payload.sb3) {
-                          var arrayBuf = base64ToArrayBuffer(payload.sb3);
-                          cachedSharedBuffer = arrayBuf;
+                      if (payload) {
                           cachedSharedMeta = payload;
+                          await new Promise(function (r) { setTimeout(r, 500); });
 
-                          // Wait 400ms after initial boot settles so default project loader cannot overwrite us
-                          await new Promise(function (r) { setTimeout(r, 400); });
-                          await vm.loadProject(arrayBuf.slice(0));
-                          activateLoadedProjectWorkspace(vm, payload.t || 'Shared TechMedha Project');
+                          var loadedOk = false;
+                          if (payload.sb3) {
+                              try {
+                                  var u8 = base64ToUint8Array(payload.sb3);
+                                  await vm.loadProject(u8.buffer);
+                                  loadedOk = true;
+                              } catch (sb3Err) {}
+                          }
+                          if (!loadedOk && payload.json) {
+                              await vm.loadProject(payload.json);
+                              loadedOk = true;
+                          }
 
-                          // Re-verify 1.2s later in case React mounted late
-                          setTimeout(function () {
-                              if (cachedSharedMeta && cachedSharedMeta.t) {
-                                  activateLoadedProjectWorkspace(vm, cachedSharedMeta.t);
-                              }
-                          }, 1200);
+                          if (loadedOk) {
+                              activateLoadedProjectWorkspace(vm, payload.t || 'TechMedha Project');
+                              setTimeout(function () {
+                                  activateLoadedProjectWorkspace(vm, payload.t || 'TechMedha Project');
+                              }, 900);
+                              setTimeout(function () {
+                                  activateLoadedProjectWorkspace(vm, payload.t || 'TechMedha Project');
+                              }, 2000);
 
-                          var creatorText = payload.by ? (' by ' + payload.by) : '';
-                          var schoolText = payload.sc ? (' (' + payload.sc + ')') : '';
-                          showToast('✨ Resumed "' + (payload.t || 'TechMedha Project') + '"' + creatorText + schoolText + '!', 6000);
-                          logDebug('Successfully resumed shared project: ' + (payload.t || shortCode));
+                              var creatorText = payload.by ? (' by ' + payload.by) : '';
+                              var schoolText = payload.sc ? (' (' + payload.sc + ')') : '';
+                              showToast('✨ Resumed "' + (payload.t || 'TechMedha Project') + '"' + creatorText + schoolText + '!', 6500);
+                          }
                       }
                       sharedLoadState = 'done';
                   } catch (err) {
                       sharedLoadState = 'done';
-                      logDebug('Failed to resume shared project: ' + err.message);
-                      showToast('⚠️ Could not resume shared project (' + err.message + ').', 6000);
+                      showToast('⚠️ Could not load shared project (' + err.message + ').', 6000);
                   }
               }
 
@@ -1147,21 +1131,21 @@ jobs:
 
               function downloadStudentIdCard(student) {
                   var c = document.createElement('canvas');
-                  c.width = 520;
+                  c.width = 540;
                   c.height = 300;
                   var ctx = c.getContext('2d');
 
                   ctx.fillStyle = '#F0FDFA';
-                  ctx.fillRect(0, 0, 520, 300);
+                  ctx.fillRect(0, 0, 540, 300);
                   ctx.strokeStyle = '#0D9488';
                   ctx.lineWidth = 6;
-                  ctx.strokeRect(3, 3, 514, 294);
+                  ctx.strokeRect(3, 3, 534, 294);
 
-                  var grad = ctx.createLinearGradient(0, 0, 520, 0);
+                  var grad = ctx.createLinearGradient(0, 0, 540, 0);
                   grad.addColorStop(0, '#0D9488');
                   grad.addColorStop(1, '#0284C7');
                   ctx.fillStyle = grad;
-                  ctx.fillRect(0, 0, 520, 68);
+                  ctx.fillRect(0, 0, 540, 68);
 
                   ctx.fillStyle = '#FFFFFF';
                   ctx.font = 'bold 20px sans-serif';
@@ -1178,10 +1162,10 @@ jobs:
 
                   ctx.fillStyle = '#1E293B';
                   ctx.font = 'bold 17px sans-serif';
-                  ctx.fillText(student.name || '', 160, 108);
+                  ctx.fillText(student.name || 'M.V.S.S. Mokshagna', 160, 108);
                   ctx.font = '600 15px sans-serif';
-                  ctx.fillText(student.school || '', 160, 152);
-                  ctx.fillText(student.area || '', 160, 196);
+                  ctx.fillText(student.school || 'Techmedha High School', 160, 152);
+                  ctx.fillText(student.area || 'Dilsukhnagar, Hyderabad, TS', 160, 196);
 
                   ctx.fillStyle = '#0284C7';
                   ctx.fillRect(225, 224, 150, 38);
@@ -1239,7 +1223,7 @@ jobs:
                   });
               }
 
-              // 7. Open Custom TechMedha Share Modal (Short Shareable Link + QR Code + Showcase Card with QR)
+              // 7. Open Custom TechMedha Share Modal (With Dummy Placeholders: M.V.S.S. Mokshagna, Techmedha High School, Dilsukhnagar, Hyderabad, TS)
               function openShareModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1263,23 +1247,23 @@ jobs:
                           '<div class="tm-share-modal-body">' +
                               '<div class="tm-share-field">' +
                                   '<label>Project Title</label>' +
-                                  '<input type="text" id="tm-share-title" value="' + defaultTitle.replace(/"/g, '&quot;') + '" />' +
+                                  '<input type="text" id="tm-share-title" placeholder="e.g., TechMedha Project" value="' + defaultTitle.replace(/"/g, '&quot;') + '" />' +
                               '</div>' +
                               '<div style="display:flex;gap:8px;">' +
                                   '<div class="tm-share-field" style="flex:1;">' +
                                       '<label>Creator / Student Name</label>' +
-                                      '<input type="text" id="tm-share-student" placeholder="e.g., Aarav" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                                      '<input type="text" id="tm-share-student" placeholder="e.g., M.V.S.S. Mokshagna" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
                                   '</div>' +
-                                  '<div class="tm-share-field" style="flex:1.2;">' +
+                                  '<div class="tm-share-field" style="flex:1.3;">' +
                                       '<label>School & Area / State</label>' +
-                                      '<input type="text" id="tm-share-school" placeholder="e.g., Sishu Mandir, Hyd" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
+                                      '<input type="text" id="tm-share-school" placeholder="e.g., Techmedha High School, Dilsukhnagar, Hyderabad, TS" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
                                   '</div>' +
                               '</div>' +
                               '<button class="tm-share-action-btn" id="tm-btn-gen-qr" style="background: linear-gradient(90deg, #7C3AED, #0284C7);">' +
                                   '🔗 Generate Short Shareable Link & QR Code' +
                               '</button>' +
                               '<div class="tm-qr-box" id="tm-qr-box">' +
-                                  '<div style="font-size:12px;font-weight:700;color:#0F766E;">📱 Scan QR Code or Copy Short Link to Resume Project</div>' +
+                                  '<div style="font-size:12px;font-weight:700;color:#0F766E;">📱 Scan QR Code or Copy Short Link to Open in New Tab</div>' +
                                   '<div class="tm-qr-canvas-wrap">' +
                                       '<canvas id="tm-qr-canvas" width="170" height="170"></canvas>' +
                                   '</div>' +
@@ -1311,8 +1295,8 @@ jobs:
                   function ensureShareUrlGenerated() {
                       return new Promise(async function (resolve) {
                           var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
-                          var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
-                          var schoolInfo = document.getElementById('tm-share-school').value.trim();
+                          var studentName = document.getElementById('tm-share-student').value.trim() || 'M.V.S.S. Mokshagna';
+                          var schoolInfo = document.getElementById('tm-share-school').value.trim() || 'Techmedha High School, Dilsukhnagar, Hyderabad, TS';
 
                           var genBtn = document.getElementById('tm-btn-gen-qr');
                           genBtn.textContent = '⏳ Creating Short Link & QR Code...';
@@ -1359,8 +1343,8 @@ jobs:
 
                   document.getElementById('tm-btn-snapshot').onclick = async function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
-                      var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
-                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
+                      var studentName = document.getElementById('tm-share-student').value.trim() || 'M.V.S.S. Mokshagna';
+                      var schoolInfo = document.getElementById('tm-share-school').value.trim() || 'Techmedha High School, Dilsukhnagar, Hyderabad, TS';
 
                       if (!lastGeneratedUrl) {
                           await ensureShareUrlGenerated();
@@ -1390,7 +1374,7 @@ jobs:
                       ctx.fillStyle = '#FFFFFF';
                       ctx.font = 'bold 22px sans-serif';
                       ctx.fillText(projTitle, 24, 34);
-                      ctx.font = '600 14px sans-serif';
+                      ctx.font = '600 13.5px sans-serif';
                       ctx.fillText('Creator: ' + studentName + (schoolInfo ? ' • ' + schoolInfo : ''), 24, 60);
 
                       ctx.fillStyle = '#FFFFFF';
@@ -1412,7 +1396,7 @@ jobs:
                       ctx.fillText('LIVE PROJECT', 552, 262);
                       ctx.fillStyle = '#0284C7';
                       ctx.font = 'bold 9.5px monospace';
-                      var codePart = (lastGeneratedUrl.split('?p=')[1] || '').slice(0, 12);
+                      var codePart = (lastGeneratedUrl.split('?s=')[1] || '').slice(0, 12);
                       if (codePart) ctx.fillText('ID: ' + codePart, 548, 280);
 
                       ctx.fillStyle = '#0F766E';
@@ -1437,20 +1421,20 @@ jobs:
 
                   document.getElementById('tm-btn-whatsapp').onclick = async function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
-                      var studentName = document.getElementById('tm-share-student').value.trim();
-                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
+                      var studentName = document.getElementById('tm-share-student').value.trim() || 'M.V.S.S. Mokshagna';
+                      var schoolInfo = document.getElementById('tm-share-school').value.trim() || 'Techmedha High School, Dilsukhnagar, Hyderabad, TS';
                       if (!lastGeneratedUrl) {
                           await ensureShareUrlGenerated();
                       }
                       var msg = '🌟 Check out the coding project *"' + projTitle + '"*' +
-                          (studentName ? ' created by *' + studentName + '*' : '') +
-                          (schoolInfo ? ' (' + schoolInfo + ')' : '') +
+                          ' created by *' + studentName + '*' +
+                          ' (' + schoolInfo + ')' +
                           ' on TechMedha Block Coding Studio! 🚀\n\n🔗 Open & Play Live Project:\n' + lastGeneratedUrl;
                       window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
                   };
               }
 
-              // 8. Open Lifetime Student Login & "My Saved Projects" Vault Modal
+              // 8. Open Lifetime Student Login & Vault Modal (With Dummy Placeholders: M.V.S.S. Mokshagna, Techmedha High School, Dilsukhnagar, Hyderabad, TS)
               function openLoginModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1480,15 +1464,15 @@ jobs:
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>Student Full Name *</label>' +
-                                      '<input type="text" id="tm-login-name" placeholder="e.g., Aarav Sharma" />' +
+                                      '<input type="text" id="tm-login-name" placeholder="e.g., M.V.S.S. Mokshagna" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>School Name *</label>' +
-                                      '<input type="text" id="tm-login-school" placeholder="e.g., Sri Saraswathi Sishu Mandir" />' +
+                                      '<input type="text" id="tm-login-school" placeholder="e.g., Techmedha High School" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>Area / State *</label>' +
-                                      '<input type="text" id="tm-login-area" placeholder="e.g., Hyderabad, Telangana" />' +
+                                      '<input type="text" id="tm-login-area" placeholder="e.g., Dilsukhnagar, Hyderabad, TS" />' +
                                   '</div>' +
                                   '<button class="tm-share-action-btn" id="tm-btn-do-login" style="background: linear-gradient(90deg, #0D9488, #0284C7); margin-top: 4px;">' +
                                       '🔓 Open My Lifetime Project Vault' +
@@ -1538,11 +1522,11 @@ jobs:
                               return;
                           }
                           if (!name) {
-                              alert('Please enter your Student Full Name.');
+                              alert('Please enter your Student Full Name (e.g., M.V.S.S. Mokshagna).');
                               return;
                           }
                           if (!school) {
-                              alert('Please enter your School Name.');
+                              alert('Please enter your School Name (e.g., Techmedha High School).');
                               return;
                           }
 
@@ -1550,7 +1534,7 @@ jobs:
                           setCurrentStudent({
                               name: name,
                               school: school,
-                              area: area || 'India',
+                              area: area || 'Dilsukhnagar, Hyderabad, TS',
                               passcode: passcode,
                               key: studentKey
                           });
@@ -1669,65 +1653,6 @@ jobs:
                   }
               }
 
-              // 9. Live Diagnostics & Debug Modal (🛠️ Button or Ctrl + Shift + D)
-              function openDebugModal() {
-                  var existing = document.getElementById('tm-share-overlay');
-                  if (existing) existing.remove();
-
-                  var vm = getScratchVM();
-                  var student = getCurrentStudent();
-                  var stageCanvas = document.querySelector('[class*="stage_stage"] canvas') || document.querySelector('canvas');
-                  var titleInput = findTitleInput();
-
-                  var overlay = document.createElement('div');
-                  overlay.id = 'tm-share-overlay';
-                  overlay.className = 'tm-share-overlay';
-
-                  var vmStatus = vm ? ('✅ Connected (' + (vm.runtime && vm.runtime.targets ? vm.runtime.targets.length : 0) + ' targets)') : '⚠️ Waiting for VM';
-                  var qrStatus = window.QRious ? '✅ QRious Loaded' : '⚠️ Fallback API Mode';
-                  var stageStatus = stageCanvas ? ('✅ Ready (' + stageCanvas.width + '×' + stageCanvas.height + ')') : '⚠️ Not mounted';
-
-                  overlay.innerHTML =
-                      '<div class="tm-share-modal">' +
-                          '<div class="tm-share-modal-header">' +
-                              '<span>🛠️ TechMedha Studio Diagnostics</span>' +
-                              '<button class="tm-share-close-btn" id="tm-dbg-close">✕</button>' +
-                          '</div>' +
-                          '<div class="tm-share-modal-body">' +
-                              '<div class="tm-debug-row"><span>Build Version</span><b>' + (window.TM_BUILD_STAMP || 'Custom Build') + '</b></div>' +
-                              '<div class="tm-debug-row"><span>Scratch VM Engine</span><span class="' + (vm ? 'tm-debug-ok' : 'tm-debug-warn') + '">' + vmStatus + '</span></div>' +
-                              '<div class="tm-debug-row"><span>QR & Short-Link Engine</span><span class="tm-debug-ok">' + qrStatus + '</span></div>' +
-                              '<div class="tm-debug-row"><span>WebGL Stage Canvas</span><span class="tm-debug-ok">' + stageStatus + '</span></div>' +
-                              '<div class="tm-debug-row"><span>Project Title Input</span><span class="tm-debug-ok">' + (titleInput ? titleInput.value : 'Not mounted') + '</span></div>' +
-                              '<div class="tm-debug-row"><span>Shared URL Resume State</span><span class="tm-debug-ok">' + sharedLoadState + '</span></div>' +
-                              '<div class="tm-debug-row"><span>Active Student Vault</span><span class="tm-debug-ok">' + (student ? (student.name + ' [' + student.passcode + ']') : 'Guest Mode') + '</span></div>' +
-                              '<div class="tm-share-field">' +
-                                  '<label>Recent Runtime Event Log</label>' +
-                                  '<div class="tm-project-list" style="font-family:monospace;font-size:11px;max-height:110px;">' +
-                                      debugLogs.slice(-10).reverse().map(function (l) { return '<div>' + l + '</div>'; }).join('') +
-                                  '</div>' +
-                              '</div>' +
-                              '<button class="tm-share-action-btn" id="tm-btn-force-reload" style="background: linear-gradient(90deg, #F97316, #EA580C);">' +
-                                  '🔄 Force Cache-Busted Page Reload' +
-                              '</button>' +
-                          '</div>' +
-                      '</div>';
-
-                  document.body.appendChild(overlay);
-                  document.getElementById('tm-dbg-close').onclick = function () { overlay.remove(); };
-                  overlay.onclick = function (ev) { if (ev.target === overlay) overlay.remove(); };
-                  document.getElementById('tm-btn-force-reload').onclick = function () {
-                      window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
-                  };
-              }
-
-              document.addEventListener('keydown', function (e) {
-                  if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
-                      e.preventDefault();
-                      openDebugModal();
-                  }
-              });
-
               function updateLoginButtonUI() {
                   var loginBtn = document.getElementById('tm-custom-login-btn');
                   if (!loginBtn) return;
@@ -1741,14 +1666,12 @@ jobs:
                   }
               }
 
-              // 10. Self-Healing Top Header Mount
+              // 9. Self-Healing Top Header Mount (Share + Student Login Only - Debug Button Removed)
               function ensureStudioEnhancements() {
                   if (!document.body) return;
 
                   var titleInput = findTitleInput();
-                  if (titleInput && (titleInput.value === 'Scratch Project' || !titleInput.value) && sharedLoadState !== 'done') {
-                      setProjectTitleInput('TechMedha Project');
-                  } else if (titleInput && titleInput.value === 'Scratch Project' && !cachedSharedMeta) {
+                  if (titleInput && (titleInput.value === 'Scratch Project' || !titleInput.value) && !cachedSharedMeta) {
                       setProjectTitleInput('TechMedha Project');
                   }
 
@@ -1773,42 +1696,31 @@ jobs:
                       loginBtn.type = 'button';
                       loginBtn.onclick = openLoginModal;
 
-                      var debugBtn = document.createElement('button');
-                      debugBtn.id = 'tm-custom-debug-btn';
-                      debugBtn.className = 'tm-debug-header-btn';
-                      debugBtn.type = 'button';
-                      debugBtn.title = 'TechMedha Studio Diagnostics (Ctrl+Shift+D)';
-                      debugBtn.innerHTML = '<span>🛠️</span>';
-                      debugBtn.onclick = openDebugModal;
-
                       controlsWrap.appendChild(shareBtn);
                       controlsWrap.appendChild(loginBtn);
-                      controlsWrap.appendChild(debugBtn);
                       document.body.appendChild(controlsWrap);
 
                       updateLoginButtonUI();
-                      logDebug('Mounted Share, Student Login, and Debug buttons in top bar.');
                   }
               }
 
-              setInterval(ensureStudioEnhancements, 600);
+              setInterval(ensureStudioEnhancements, 500);
               window.addEventListener('DOMContentLoaded', ensureStudioEnhancements);
               window.addEventListener('load', ensureStudioEnhancements);
           })();
           EOF
 
-          cat /tmp/tm-build-meta.js /tmp/tm-studio-core.js > /tmp/tm-studio-bundle.js
-
-          # Inject into src/playground/index.ejs BEFORE Webpack runs
+          # Inject into src/playground/index.ejs using split/join
           cat << 'EOF' > /tmp/patch-ejs.cjs
           const fs = require('fs');
           const ejsPath = 'src/playground/index.ejs';
           if (fs.existsSync(ejsPath)) {
               let ejs = fs.readFileSync(ejsPath, 'utf8');
-              const tag = '<link rel="stylesheet" href="tm-studio-bundle.css?v=' + Date.now() + '"><script src="tm-studio-bundle.js?v=' + Date.now() + '"></script></head>';
-              ejs = ejs.replace('</head>', tag);
+              const stamp = Date.now();
+              const tag = '<link rel="stylesheet" href="tm-studio-bundle.css?v=' + stamp + '"><script src="tm-studio-bundle.js?v=' + stamp + '"></script></head>';
+              ejs = ejs.split('</head>').join(tag);
               fs.writeFileSync(ejsPath, ejs, 'utf8');
-              console.log('Injected bundle tags into src/playground/index.ejs');
+              console.log('Safely injected bundle tags into src/playground/index.ejs');
           }
           EOF
           node /tmp/patch-ejs.cjs
@@ -1837,7 +1749,7 @@ jobs:
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inline-Verify Bundle Inside Built HTML Files
+      - name: Safe Inline-Inject Bundle into Built HTML Files
         run: |
           cat << 'EOF' > /tmp/verify-build-html.cjs
           const fs = require('fs');
@@ -1851,12 +1763,12 @@ jobs:
                   const full = path.join('./build', file);
                   let html = fs.readFileSync(full, 'utf8');
                   if (html.includes('</head>')) {
-                      html = html.replace('</head>', inlineBlock + '</head>');
+                      html = html.split('</head>').join(inlineBlock + '</head>');
                   } else {
                       html += inlineBlock;
                   }
                   fs.writeFileSync(full, html, 'utf8');
-                  console.log('Verified and inlined bundle into', full);
+                  console.log('Safely inlined bundle into', full);
               }
           }
           EOF
