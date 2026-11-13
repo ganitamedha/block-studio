@@ -39,24 +39,29 @@ jobs:
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
 
-      - name: Restore Core Files, Set Default Title to TechMedha Project & Patch Block Colors
+      - name: Restore Official Core Files, Hook VM, Fix WebGL Snapshots & Patch All 9 Block Categories
         run: |
-          # 1. Restore clean official core files via Git (keeps your MedhaBot mascot & logo untouched)
+          # 1. Restore clean official core files via Git (preserves your custom MedhaBot mascot & logo)
           git remote add upstream https://github.com/scratchfoundation/scratch-gui.git || true
           git fetch upstream develop --depth=1
-          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js
+          git checkout upstream/develop -- src/playground src/components/gui src/components/menu-bar src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js src/lib/vm-listener-hoc.jsx
 
-          # 2. Expose Scratch VM globally as window.vm for Share, QR Link & Student Account Project Saving
+          # 2. Hook Scratch VM in both vm.js reducer and vm-listener-hoc.jsx so window.vm is always available
           sed -i 's/new VM()/(window.vm = new VM())/g' src/reducers/vm.js || true
+          sed -i 's/this.props.vm.attachV2SVGAdapter/(window.vm = this.props.vm) \&\& this.props.vm.attachV2SVGAdapter/g' src/lib/vm-listener-hoc.jsx || true
 
-          # 3. Remove disabled default MIT placeholders & point logo to https://www.techmedha.in/
+          # 3. Enable preserveDrawingBuffer in scratch-render so Showcase Card stage screenshots are never blank
+          find node_modules/scratch-render -type f -name "*.js" -exec sed -i 's/preserveDrawingBuffer: false/preserveDrawingBuffer: true/g' {} + || true
+          find node_modules/scratch-render -type f -name "*.js" -exec sed -i 's/preserveDrawingBuffer:!1/preserveDrawingBuffer:!0/g' {} + || true
+
+          # 4. Remove disabled MIT placeholders & point logo to https://www.techmedha.in/
           sed -i 's/showComingSoon//g' src/playground/render-gui.jsx || true
           sed -i 's|https://scratch.mit.edu|https://www.techmedha.in/|g' src/playground/render-gui.jsx || true
 
-          # 4. Disable the bottom Backpack bar cleanly in gui.jsx
+          # 5. Disable the bottom Backpack bar cleanly in gui.jsx
           sed -i 's/backpackVisible ?/false ?/g' src/components/gui/gui.jsx || true
 
-          # 5. Patch all 9 Block Categories AND replace "Scratch Project" with "TechMedha Project"
+          # 6. Patch all 9 Block Categories AND replace "Scratch Project" with "TechMedha Project"
           cat << 'EOF' > /tmp/patch-studio.cjs
           const fs = require('fs');
           const path = require('path');
@@ -118,6 +123,7 @@ jobs:
                       let updated = content.replace(colorRegex, match => colorMap[match.toUpperCase()] || match);
                       if (replaceTitle) {
                           updated = updated.replace(/Scratch Project/g, 'TechMedha Project');
+                          updated = updated.replace(/Scratch 3\.0 GUI/g, 'TechMedha Block Coding Studio');
                       }
                       if (updated !== content) {
                           fs.writeFileSync(fullPath, updated, 'utf8');
@@ -134,31 +140,11 @@ jobs:
           EOF
           node /tmp/patch-studio.cjs
 
-      - name: Run Scratch Prepublish & Ensure Generated Assets Exist
+      - name: Prepare UI/UX Theme, Share + QR Engine, Student Vault & Debug Diagnostics Bundle
         run: |
-          node ./scripts/prepublish.mjs || true
-          mkdir -p src/generated
-          for file in $(grep -rhoE "generated/[a-zA-Z0-9._-]+(\.cjs|\.js)" src/ || true); do
-            target="src/$file"
-            if [ ! -f "$target" ]; then
-              printf "module.exports = '';\n" > "$target"
-            fi
-          done
+          BUILD_STAMP="$(date -u '+%Y-%m-%d %H:%M UTC') (Run #${GITHUB_RUN_NUMBER})"
 
-      - name: Build Custom Scratch GUI & Copy Storage Worker Chunks
-        run: |
-          npx webpack --stats-error-details
-          mkdir -p ./build/chunks ./build/static/chunks
-          find node_modules -path "*/scratch-storage/*" -name "*fetch-worker*" -exec cp {} ./build/chunks/ \; || true
-          find node_modules -path "*/scratch-storage/*" -name "*fetch-worker*" -exec cp {} ./build/static/chunks/ \; || true
-        env:
-          NODE_ENV: production
-          CI: false
-          NODE_OPTIONS: --max_old_space_size=6144
-
-      - name: Inject Complete UI/UX Theme, QR Code Share System, Lifetime Student Vault & Worker Fix
-        run: |
-          cat << 'EOF' > ./build/custom-theme.css
+          cat << 'EOF' > /tmp/tm-studio-bundle.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
 
           :root {
@@ -188,65 +174,85 @@ jobs:
           }
 
           /* Top Header Menu Bar Gradient & Clickable Logo */
-          [class*="menu-bar_menu-bar_"] {
+          [class*="menu-bar_menu-bar"] {
               background: linear-gradient(90deg, var(--tm-header-start) 0%, var(--tm-header-end) 100%) !important;
               border-bottom: 2px solid #0F766E !important;
               box-shadow: 0 2px 10px rgba(13, 148, 136, 0.18) !important;
               color: #FFFFFF !important;
+              overflow: visible !important;
           }
 
-          [class*="menu-bar_scratch-logo_"] {
+          [class*="menu-bar_scratch-logo"] {
               cursor: pointer !important;
               transition: transform 0.15s ease;
           }
 
-          [class*="menu-bar_scratch-logo_"]:hover {
+          [class*="menu-bar_scratch-logo"]:hover {
               transform: scale(1.05);
           }
 
-          /* Custom Share & Login Buttons in Top Menu Bar */
+          /* Guaranteed Visible Top-Right Studio Toolbar (Share + Login + Debug) */
+          #tm-header-controls {
+              position: fixed !important;
+              top: 7px !important;
+              right: 12px !important;
+              display: flex !important;
+              flex-direction: row !important;
+              align-items: center !important;
+              gap: 8px !important;
+              z-index: 99990 !important;
+              pointer-events: auto !important;
+          }
+
           .tm-share-header-btn,
-          .tm-login-header-btn {
-              display: inline-flex;
-              align-items: center;
-              gap: 6px;
-              color: #FFFFFF;
-              border: 1.5px solid rgba(255, 255, 255, 0.7);
-              border-radius: 20px;
-              padding: 5px 14px;
-              margin-left: 8px;
-              font-size: 13px;
-              font-weight: 700;
-              cursor: pointer;
-              transition: all 0.15s ease;
-              height: 32px;
-              align-self: center;
-              white-space: nowrap;
+          .tm-login-header-btn,
+          .tm-debug-header-btn {
+              display: inline-flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 6px !important;
+              color: #FFFFFF !important;
+              border: 1.5px solid rgba(255, 255, 255, 0.85) !important;
+              border-radius: 20px !important;
+              padding: 5px 14px !important;
+              font-size: 13px !important;
+              font-weight: 700 !important;
+              cursor: pointer !important;
+              transition: all 0.15s ease !important;
+              height: 33px !important;
+              white-space: nowrap !important;
+              font-family: 'Poppins', 'Nunito', sans-serif !important;
           }
 
           .tm-share-header-btn {
-              background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
-              box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35);
+              background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important;
+              box-shadow: 0 3px 10px rgba(249, 115, 22, 0.45) !important;
           }
 
           .tm-share-header-btn:hover {
-              background: linear-gradient(135deg, #EA580C 0%, #C2410C 100%);
-              transform: translateY(-1px);
+              background: linear-gradient(135deg, #EA580C 0%, #C2410C 100%) !important;
+              transform: translateY(-1px) !important;
           }
 
           .tm-login-header-btn {
-              background: rgba(255, 255, 255, 0.18);
-              margin-right: 12px;
+              background: rgba(15, 23, 42, 0.35) !important;
+              backdrop-filter: blur(4px);
           }
 
           .tm-login-header-btn:hover {
-              background: rgba(255, 255, 255, 0.3);
-              transform: translateY(-1px);
+              background: rgba(15, 23, 42, 0.55) !important;
+              transform: translateY(-1px) !important;
           }
 
           .tm-login-header-btn.logged-in {
-              background: linear-gradient(135deg, #059669 0%, #0D9488 100%);
-              border-color: #A7F3D0;
+              background: linear-gradient(135deg, #059669 0%, #0D9488 100%) !important;
+              border-color: #A7F3D0 !important;
+          }
+
+          .tm-debug-header-btn {
+              padding: 5px 10px !important;
+              background: rgba(15, 23, 42, 0.28) !important;
+              font-size: 12px !important;
           }
 
           /* Modal Overlay & Cards */
@@ -397,7 +403,6 @@ jobs:
               font-weight: 700;
               cursor: pointer;
               white-space: nowrap;
-              transition: transform 0.12s ease;
           }
 
           .tm-hint-box {
@@ -452,7 +457,6 @@ jobs:
               opacity: 0.96;
           }
 
-          /* Toast Notification Banner for Shared Project Loading */
           .tm-toast-banner {
               position: fixed;
               bottom: 18px;
@@ -468,7 +472,6 @@ jobs:
               border: 2px solid #99F6E4;
           }
 
-          /* Saved Projects List inside Student Profile Modal */
           .tm-project-list {
               display: flex;
               flex-direction: column;
@@ -513,25 +516,40 @@ jobs:
               margin-left: 4px;
           }
 
+          /* Debug Status Row */
+          .tm-debug-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 7px 10px;
+              background: #F8FAFC;
+              border: 1px solid #E2E8F0;
+              border-radius: 8px;
+              font-size: 12.5px;
+          }
+
+          .tm-debug-ok { color: #059669; font-weight: 700; }
+          .tm-debug-warn { color: #D97706; font-weight: 700; }
+
           /* Main Workspace & Code / Costumes / Sounds Tabs */
-          [class*="gui_body-wrapper_"] {
+          [class*="gui_body-wrapper"] {
               background-color: var(--tm-workspace-bg) !important;
           }
 
-          [class*="gui_tab_"] {
+          [class*="gui_tab"] {
               background-color: #CCFBF1 !important;
               border: 1px solid var(--tm-border-color) !important;
               color: var(--tm-text-dark) !important;
               font-weight: 600 !important;
           }
 
-          [class*="gui_tab_"][class*="gui_is-selected_"] {
+          [class*="gui_tab"][class*="gui_is-selected"] {
               background-color: var(--tm-primary-accent) !important;
               border-color: var(--tm-primary-accent) !important;
               color: #FFFFFF !important;
           }
 
-          [class*="gui_tab_"][class*="gui_is-selected_"] img {
+          [class*="gui_tab"][class*="gui_is-selected"] img {
               filter: brightness(0) invert(1);
           }
 
@@ -556,22 +574,22 @@ jobs:
               background-color: var(--tm-canvas-bg) !important;
           }
 
-          [class*="gui_extension-button-container_"] {
+          [class*="gui_extension-button-container"] {
               background: linear-gradient(135deg, #0D9488 0%, #0284C7 100%) !important;
               border-color: #0F766E !important;
           }
 
           /* Stage Frame & Sprite Panels */
-          [class*="stage-header_stage-header-wrapper_"] {
+          [class*="stage-header_stage-header-wrapper"] {
               background-color: var(--tm-workspace-bg) !important;
           }
 
-          [class*="stage_stage-wrapper_"] [class*="stage_stage_"] {
+          [class*="stage_stage-wrapper"] [class*="stage_stage"] {
               border: 2px solid var(--tm-border-color) !important;
               border-radius: 12px !important;
           }
 
-          [class*="sprite-info_sprite-info_"] {
+          [class*="sprite-info_sprite-info"] {
               background-color: #FFFFFF !important;
               border-bottom: 1px solid var(--tm-border-color) !important;
               border-top-left-radius: 10px !important;
@@ -579,78 +597,132 @@ jobs:
               color: var(--tm-text-dark) !important;
           }
 
-          [class*="sprite-selector_sprite-selector_"] {
+          [class*="sprite-selector_sprite-selector"] {
               background-color: var(--tm-panel-bg) !important;
               border: 1.5px solid var(--tm-border-color) !important;
               border-radius: 10px !important;
           }
 
-          [class*="stage-selector_stage-selector_"] {
+          [class*="stage-selector_stage-selector"] {
               background-color: #FFFFFF !important;
               border: 1.5px solid var(--tm-border-color) !important;
               border-radius: 10px !important;
           }
 
-          [class*="sprite-selector-item_is-selected_"] {
+          [class*="sprite-selector-item_is-selected"] {
               border: 2.5px solid var(--tm-primary-accent) !important;
           }
 
-          [class*="sprite-selector-item_sprite-info_"] {
+          [class*="sprite-selector-item_sprite-info"] {
               background-color: var(--tm-primary-accent) !important;
               color: #FFFFFF !important;
           }
 
           /* Coral Floating Action Buttons (Choose Sprite / Choose Backdrop) */
-          [class*="action-menu_main-button_"] {
+          [class*="action-menu_main-button"] {
               background-color: var(--tm-action-btn) !important;
               box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35) !important;
           }
 
-          [class*="action-menu_main-button_"]:hover {
+          [class*="action-menu_main-button"]:hover {
               background-color: var(--tm-action-btn-hover) !important;
           }
 
-          [class*="action-menu_more-buttons-outer_"] {
+          [class*="action-menu_more-buttons-outer"] {
               background-color: var(--tm-header-start) !important;
           }
 
           /* Library Modals */
-          [class*="modal_header_"] {
+          [class*="modal_header"] {
               background: linear-gradient(90deg, var(--tm-header-start) 0%, var(--tm-header-end) 100%) !important;
           }
 
           /* Permanently Hide the Disabled Bottom Backpack Bar */
-          [class*="backpack_backpack-container_"],
-          [class*="backpack_backpack-header_"] {
+          [class*="backpack_backpack-container"],
+          [class*="backpack_backpack-header"] {
               display: none !important;
           }
           EOF
 
-          # Worker Fix + Logo Redirect + QR Code Share Link System + Lifetime 6-Char Passcode Student Vault
-          cat << 'EOF' > ./build/worker-fix.js
+          cat << EOF > /tmp/tm-build-meta.js
+          window.TM_BUILD_STAMP = "${BUILD_STAMP}";
+          EOF
+
+          cat << 'EOF' > /tmp/tm-studio-core.js
           (function () {
+              if (window.__TM_STUDIO_INITIALIZED__) return;
+              window.__TM_STUDIO_INITIALIZED__ = true;
+
+              var debugLogs = [];
+              function logDebug(msg) {
+                  var entry = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+                  debugLogs.push(entry);
+                  console.log('%c[TechMedha Studio]', 'color:#0D9488;font-weight:bold;', msg);
+              }
+              logDebug('Initializing TechMedha Studio Enhancements (' + (window.TM_BUILD_STAMP || 'Live') + ')');
+
+              // 1. Subfolder Web Worker Path Fix for Sprites, Backdrops, Costumes & Sounds
+              var workerFixCount = 0;
               var OriginalWorker = window.Worker;
               window.Worker = function (scriptURL, options) {
                   var urlStr = String(scriptURL);
                   if (urlStr.indexOf('/chunks/') !== -1 && urlStr.indexOf('/block-studio/chunks/') === -1) {
                       urlStr = urlStr.replace('/chunks/', '/block-studio/chunks/');
+                      workerFixCount++;
+                      logDebug('Routed FetchWorker to subfolder: ' + urlStr);
                   }
                   return new OriginalWorker(urlStr, options);
               };
               window.Worker.prototype = OriginalWorker.prototype;
 
-              // Load QRious HTML5 Canvas QR Generator Library
+              // 2. Load QRious HTML5 Canvas QR Generator Library
               (function loadQRious() {
                   if (window.QRious) return;
                   var s = document.createElement('script');
                   s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
                   s.async = true;
+                  s.onload = function () { logDebug('QRious QR Code engine loaded.'); };
                   document.head.appendChild(s);
               })();
 
-              // 1. Redirect top-left Logo Click to https://www.techmedha.in/
+              // 3. Guaranteed Scratch VM Finder (Checks window.vm + React Fiber Tree fallback)
+              function getScratchVM() {
+                  if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
+                      return window.vm;
+                  }
+                  var rootEl = document.getElementById('app') || document.body;
+                  var walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT, null, false);
+                  var node;
+                  while ((node = walker.nextNode())) {
+                      var keys = Object.keys(node);
+                      for (var i = 0; i < keys.length; i++) {
+                          var k = keys[i];
+                          if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0) {
+                              var fiber = node[k];
+                              var depth = 0;
+                              while (fiber && depth < 15) {
+                                  if (fiber.memoizedProps && fiber.memoizedProps.vm && typeof fiber.memoizedProps.vm.saveProjectSb3 === 'function') {
+                                      window.vm = fiber.memoizedProps.vm;
+                                      logDebug('Discovered Scratch VM via React Fiber.');
+                                      return window.vm;
+                                  }
+                                  if (fiber.stateNode && fiber.stateNode.props && fiber.stateNode.props.vm && typeof fiber.stateNode.props.vm.saveProjectSb3 === 'function') {
+                                      window.vm = fiber.stateNode.props.vm;
+                                      logDebug('Discovered Scratch VM via React StateNode.');
+                                      return window.vm;
+                                  }
+                                  fiber = fiber.return;
+                                  depth++;
+                              }
+                          }
+                      }
+                  }
+                  return null;
+              }
+
+              // 4. Redirect top-left Logo Click to https://www.techmedha.in/
               document.addEventListener('click', function (e) {
-                  var logo = e.target && e.target.closest && e.target.closest('[class*="menu-bar_scratch-logo_"]');
+                  var logo = e.target && e.target.closest && e.target.closest('[class*="scratch-logo"]');
                   if (logo) {
                       e.preventDefault();
                       e.stopPropagation();
@@ -680,7 +752,6 @@ jobs:
                   }, 5000);
               }
 
-              // Helper: Generate a 6-character Alphanumeric Passcode
               function generateSixCharCode() {
                   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
                   var code = 'TM';
@@ -726,8 +797,14 @@ jobs:
                   updateLoginButtonUI();
               }
 
+              function findTitleInput() {
+                  return document.querySelector('input[class*="title-field"]') ||
+                         document.querySelector('[class*="menu-bar"] input[type="text"]') ||
+                         document.querySelector('input[placeholder*="title" i]');
+              }
+
               function setProjectTitleInput(newTitle) {
-                  var input = document.querySelector('[class*="project-title-input_title-field_"]');
+                  var input = findTitleInput();
                   if (!input) return;
                   var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
                   nativeInputValueSetter.call(input, newTitle);
@@ -737,7 +814,7 @@ jobs:
               }
 
               function getProjectTitle() {
-                  var input = document.querySelector('[class*="project-title-input_title-field_"]');
+                  var input = findTitleInput();
                   return (input && input.value && input.value.trim()) ? input.value.trim() : 'TechMedha Project';
               }
 
@@ -754,7 +831,6 @@ jobs:
                   }, 500);
               }
 
-              // Compress & Decompress JSON for Fallback URL Sharing
               async function compressToBase64Url(str) {
                   if (typeof CompressionStream !== 'undefined') {
                       var bytes = new TextEncoder().encode(str);
@@ -788,16 +864,16 @@ jobs:
                   return decodeURIComponent(escape(bin));
               }
 
-              // Generate Short Cloud Shareable Link for Current Project (with fallback)
               async function createShareableProjectLink(projTitle, studentName, schoolInfo) {
                   var baseUrl = window.location.origin + window.location.pathname;
                   var qParams = 't=' + encodeURIComponent(projTitle) +
                       (studentName ? '&by=' + encodeURIComponent(studentName) : '') +
                       (schoolInfo ? '&sc=' + encodeURIComponent(schoolInfo) : '');
 
-                  if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
+                  var vm = getScratchVM();
+                  if (vm && typeof vm.saveProjectSb3 === 'function') {
                       try {
-                          var sb3Blob = await window.vm.saveProjectSb3();
+                          var sb3Blob = await vm.saveProjectSb3();
                           var resp = await fetch('https://bytebin.lucko.me/post', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/octet-stream' },
@@ -806,16 +882,16 @@ jobs:
                           if (resp.ok) {
                               var data = await resp.json();
                               if (data && data.key) {
+                                  logDebug('Generated short cloud share key: ' + data.key);
                                   return baseUrl + '?s=' + encodeURIComponent(data.key) + '&' + qParams;
                               }
                           }
                       } catch (err) {
-                          console.warn('Cloud shortener fallback:', err);
+                          logDebug('Cloud shortener fallback used: ' + err.message);
                       }
 
-                      // Fallback: Compress VM JSON into URL Hash
                       try {
-                          var jsonStr = window.vm.toJSON();
+                          var jsonStr = vm.toJSON();
                           var compressed = await compressToBase64Url(jsonStr);
                           return baseUrl + '?' + qParams + '#z=' + compressed;
                       } catch (e2) {}
@@ -823,9 +899,11 @@ jobs:
                   return baseUrl;
               }
 
-              // Render QR Code onto a target <canvas>
-              function renderQrToCanvas(canvasEl, urlText, sizePx) {
-                  if (!canvasEl) return;
+              function renderQrToCanvas(canvasEl, urlText, sizePx, onDone) {
+                  if (!canvasEl) {
+                      if (onDone) onDone();
+                      return;
+                  }
                   if (window.QRious) {
                       new window.QRious({
                           element: canvasEl,
@@ -836,6 +914,7 @@ jobs:
                           foreground: '#0F172A',
                           padding: 8
                       });
+                      if (onDone) onDone();
                   } else {
                       var img = new Image();
                       img.crossOrigin = 'anonymous';
@@ -846,12 +925,13 @@ jobs:
                           ctx.fillStyle = '#FFFFFF';
                           ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
                           ctx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+                          if (onDone) onDone();
                       };
+                      img.onerror = function () { if (onDone) onDone(); };
                       img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=' + (sizePx || 180) + 'x' + (sizePx || 180) + '&data=' + encodeURIComponent(urlText);
                   }
               }
 
-              // Auto-Load Shared Project When Opening a QR Code Link (?s=... or #z=...)
               var sharedProjectChecked = false;
               async function checkAndLoadSharedProjectFromUrl() {
                   if (sharedProjectChecked) return;
@@ -864,7 +944,8 @@ jobs:
                       sharedProjectChecked = true;
                       return;
                   }
-                  if (!window.vm || !window.vm.runtime || !window.vm.runtime.targets || !window.vm.runtime.targets.length) {
+                  var vm = getScratchVM();
+                  if (!vm || !vm.runtime || !vm.runtime.targets || !vm.runtime.targets.length) {
                       return;
                   }
                   sharedProjectChecked = true;
@@ -879,7 +960,7 @@ jobs:
                           var resp = await fetch('https://bytebin.lucko.me/' + encodeURIComponent(shareKey));
                           if (resp.ok) {
                               var buf = await resp.arrayBuffer();
-                              await window.vm.loadProject(buf);
+                              await vm.loadProject(buf);
                               setProjectTitleInput(sharedTitle);
                               showToast('✨ Loaded "' + sharedTitle + '"' + (sharedBy ? ' by ' + sharedBy : '') + (sharedSchool ? ' (' + sharedSchool + ')' : '') + '!');
                               return;
@@ -887,17 +968,16 @@ jobs:
                       }
                       if (hasHashProj) {
                           var rawJson = await decompressFromBase64Url(hashStr.slice(3));
-                          await window.vm.loadProject(rawJson);
+                          await vm.loadProject(rawJson);
                           setProjectTitleInput(sharedTitle);
                           showToast('✨ Loaded "' + sharedTitle + '"' + (sharedBy ? ' by ' + sharedBy : '') + '!');
                       }
                   } catch (err) {
-                      console.error('Failed to load shared project:', err);
+                      logDebug('Failed to load shared project: ' + err.message);
                       showToast('⚠️ Could not load shared project link.');
                   }
               }
 
-              // Helper: Download Student ID Card (.PNG) with 6-Char Passcode
               function downloadStudentIdCard(student) {
                   var c = document.createElement('canvas');
                   c.width = 520;
@@ -947,7 +1027,6 @@ jobs:
                   }, 'image/png');
               }
 
-              // IndexedDB Helper for Student's Saved Projects Vault
               function openProjectDB(callback) {
                   var req = indexedDB.open('TechMedhaStudioVault', 1);
                   req.onupgradeneeded = function (e) {
@@ -1006,7 +1085,7 @@ jobs:
                   });
               }
 
-              // 2. Open Custom TechMedha Share Modal (Now with Shareable Link & QR Code Generator!)
+              // 5. Open Custom TechMedha Share Modal (Short Shareable Link + QR Code + Showcase Card with QR)
               function openShareModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1035,11 +1114,11 @@ jobs:
                               '<div style="display:flex;gap:8px;">' +
                                   '<div class="tm-share-field" style="flex:1;">' +
                                       '<label>Creator / Student Name</label>' +
-                                      '<input type="text" id="tm-share-student" placeholder="e.g., M.V.S.S. Mokshagna" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
+                                      '<input type="text" id="tm-share-student" placeholder="e.g., Aarav" value="' + prefilledStudent.replace(/"/g, '&quot;') + '" />' +
                                   '</div>' +
                                   '<div class="tm-share-field" style="flex:1.2;">' +
                                       '<label>School & Area / State</label>' +
-                                      '<input type="text" id="tm-share-school" placeholder="e.g., Techmedha High School, Dilsukhnagar" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
+                                      '<input type="text" id="tm-share-school" placeholder="e.g., Sishu Mandir, Hyd" value="' + prefilledSchool.replace(/"/g, '&quot;') + '" />' +
                                   '</div>' +
                               '</div>' +
                               '<button class="tm-share-action-btn" id="tm-btn-gen-qr" style="background: linear-gradient(90deg, #7C3AED, #0284C7);">' +
@@ -1075,24 +1154,27 @@ jobs:
                   document.getElementById('tm-share-close').onclick = function () { overlay.remove(); };
                   overlay.onclick = function (ev) { if (ev.target === overlay) overlay.remove(); };
 
-                  async function ensureShareUrlGenerated() {
-                      var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
-                      var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
-                      var schoolInfo = document.getElementById('tm-share-school').value.trim();
+                  function ensureShareUrlGenerated() {
+                      return new Promise(async function (resolve) {
+                          var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
+                          var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
+                          var schoolInfo = document.getElementById('tm-share-school').value.trim();
 
-                      var genBtn = document.getElementById('tm-btn-gen-qr');
-                      genBtn.textContent = '⏳ Creating Shareable Link & QR Code...';
-                      lastGeneratedUrl = await createShareableProjectLink(projTitle, studentName, schoolInfo);
-                      genBtn.textContent = '🔄 Refresh Shareable Link & QR Code';
+                          var genBtn = document.getElementById('tm-btn-gen-qr');
+                          genBtn.textContent = '⏳ Creating Shareable Link & QR Code...';
+                          lastGeneratedUrl = await createShareableProjectLink(projTitle, studentName, schoolInfo);
+                          genBtn.textContent = '🔄 Refresh Shareable Link & QR Code';
 
-                      var qrBox = document.getElementById('tm-qr-box');
-                      qrBox.className = 'tm-qr-box active';
-                      var urlInput = document.getElementById('tm-share-url-input');
-                      urlInput.value = lastGeneratedUrl;
+                          var qrBox = document.getElementById('tm-qr-box');
+                          qrBox.className = 'tm-qr-box active';
+                          var urlInput = document.getElementById('tm-share-url-input');
+                          urlInput.value = lastGeneratedUrl;
 
-                      var qrCanvas = document.getElementById('tm-qr-canvas');
-                      renderQrToCanvas(qrCanvas, lastGeneratedUrl, 170);
-                      return lastGeneratedUrl;
+                          var qrCanvas = document.getElementById('tm-qr-canvas');
+                          renderQrToCanvas(qrCanvas, lastGeneratedUrl, 170, function () {
+                              resolve(lastGeneratedUrl);
+                          });
+                      });
                   }
 
                   document.getElementById('tm-btn-gen-qr').onclick = function () {
@@ -1121,7 +1203,6 @@ jobs:
                       }
                   };
 
-                  // Download Showcase Card (.PNG) with Stage Snapshot + Embedded Scannable QR Code
                   document.getElementById('tm-btn-snapshot').onclick = async function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
                       var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
@@ -1131,10 +1212,13 @@ jobs:
                           await ensureShareUrlGenerated();
                       }
 
-                      var stageCanvas = document.querySelector('[class*="stage_stage_"] canvas');
-                      if (window.vm && window.vm.renderer && typeof window.vm.renderer.draw === 'function') {
-                          window.vm.renderer.draw();
+                      var vm = getScratchVM();
+                      if (vm && vm.renderer && typeof vm.renderer.draw === 'function') {
+                          vm.renderer.draw();
                       }
+                      var stageCanvas = (vm && vm.renderer && vm.renderer.canvas) ||
+                                        document.querySelector('[class*="stage_stage"] canvas') ||
+                                        document.querySelector('canvas');
 
                       var cardCanvas = document.createElement('canvas');
                       cardCanvas.width = 680;
@@ -1155,14 +1239,12 @@ jobs:
                       ctx.font = '600 14px sans-serif';
                       ctx.fillText('Creator: ' + studentName + (schoolInfo ? ' • ' + schoolInfo : ''), 24, 60);
 
-                      // Stage Snapshot on Left
                       ctx.fillStyle = '#FFFFFF';
                       ctx.fillRect(22, 100, 488, 368);
                       if (stageCanvas) {
                           ctx.drawImage(stageCanvas, 26, 104, 480, 360);
                       }
 
-                      // QR Code Panel on Right
                       ctx.fillStyle = '#FFFFFF';
                       ctx.fillRect(524, 100, 134, 174);
                       var qrCanvas = document.getElementById('tm-qr-canvas');
@@ -1187,8 +1269,9 @@ jobs:
                   document.getElementById('tm-btn-native-share').onclick = function () {
                       var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha-Project';
                       var fileName = projTitle.replace(/\s+/g, '-') + '.sb3';
-                      if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
-                          window.vm.saveProjectSb3().then(function (blob) {
+                      var vm = getScratchVM();
+                      if (vm && typeof vm.saveProjectSb3 === 'function') {
+                          vm.saveProjectSb3().then(function (blob) {
                               downloadBlob(blob, fileName);
                           });
                       }
@@ -1209,7 +1292,7 @@ jobs:
                   };
               }
 
-              // 3. Open Lifetime Student Login & "My Saved Projects" Vault Modal
+              // 6. Open Lifetime Student Login & "My Saved Projects" Vault Modal
               function openLoginModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1223,7 +1306,7 @@ jobs:
                       overlay.innerHTML =
                           '<div class="tm-share-modal">' +
                               '<div class="tm-share-modal-header">' +
-                                  '<span>🎓 TechMedha's Student Vault</span>' +
+                                  '<span>🎓 TechMedha Lifetime Student Vault</span>' +
                                   '<button class="tm-share-close-btn" id="tm-login-close">✕</button>' +
                               '</div>' +
                               '<div class="tm-share-modal-body">' +
@@ -1238,7 +1321,7 @@ jobs:
                                       '💡 <b>Returning Student?</b> Type your 6-character code above to auto-fill your details! <b>New Student?</b> Type any 6-digit/letter code or click <b>Auto-Generate</b>.' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>Student Name *</label>' +
+                                      '<label>Student Full Name *</label>' +
                                       '<input type="text" id="tm-login-name" placeholder="e.g., M.V.S.S. Mokshagna" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
@@ -1250,7 +1333,7 @@ jobs:
                                       '<input type="text" id="tm-login-area" placeholder="e.g., Dilsukhnagar, Hyderabad" />' +
                                   '</div>' +
                                   '<button class="tm-share-action-btn" id="tm-btn-do-login" style="background: linear-gradient(90deg, #0D9488, #0284C7); margin-top: 4px;">' +
-                                      '🔓 Open My Projects' +
+                                      '🔓 Open My Lifetime Project Vault' +
                                   '</button>' +
                               '</div>' +
                           '</div>';
@@ -1336,14 +1419,14 @@ jobs:
                                   '</div>' +
                                   '<div style="display:flex;gap:8px;">' +
                                       '<button class="tm-share-action-btn" id="tm-btn-save-vault" style="background: linear-gradient(90deg, #059669, #0D9488); flex: 1.4;">' +
-                                          '💾 Save Project' +
+                                          '💾 Save Project to Vault' +
                                       '</button>' +
                                       '<button class="tm-share-action-btn" id="tm-btn-id-card" style="background: #0284C7; flex: 1;">' +
                                           '🪪 Save ID Card' +
                                       '</button>' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
-                                      '<label>📂 My Saved Projects</label>' +
+                                      '<label>📂 My Lifetime Saved Projects</label>' +
                                       '<div class="tm-project-list" id="tm-vault-list">Loading your projects...</div>' +
                                   '</div>' +
                                   '<button class="tm-share-action-btn" id="tm-btn-logout" style="background: #E11D48; margin-top: 2px;">' +
@@ -1380,9 +1463,10 @@ jobs:
                                       '</div>';
 
                                   row.querySelector('[data-action="load"]').onclick = function () {
-                                      if (window.vm && proj.blob) {
+                                      var vm = getScratchVM();
+                                      if (vm && proj.blob) {
                                           proj.blob.arrayBuffer().then(function (buf) {
-                                              window.vm.loadProject(buf).then(function () {
+                                              vm.loadProject(buf).then(function () {
                                                   setProjectTitleInput(proj.title);
                                                   overlay.remove();
                                               });
@@ -1404,10 +1488,12 @@ jobs:
 
                       document.getElementById('tm-btn-save-vault').onclick = function () {
                           var title = getProjectTitle();
-                          if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
-                              window.vm.saveProjectSb3().then(function (blob) {
+                          var vm = getScratchVM();
+                          if (vm && typeof vm.saveProjectSb3 === 'function') {
+                              vm.saveProjectSb3().then(function (blob) {
                                   saveProjectToStudentVault(student, title, blob, function () {
                                       renderVaultList();
+                                      showToast('💾 Saved "' + title + '" to your Lifetime Vault!');
                                   });
                               });
                           }
@@ -1424,6 +1510,65 @@ jobs:
                   }
               }
 
+              // 7. Live Diagnostics & Debug Modal (🛠️ Button or Ctrl + Shift + D)
+              function openDebugModal() {
+                  var existing = document.getElementById('tm-share-overlay');
+                  if (existing) existing.remove();
+
+                  var vm = getScratchVM();
+                  var student = getCurrentStudent();
+                  var stageCanvas = document.querySelector('[class*="stage_stage"] canvas') || document.querySelector('canvas');
+                  var titleInput = findTitleInput();
+
+                  var overlay = document.createElement('div');
+                  overlay.id = 'tm-share-overlay';
+                  overlay.className = 'tm-share-overlay';
+
+                  var vmStatus = vm ? ('✅ Connected (' + (vm.runtime && vm.runtime.targets ? vm.runtime.targets.length : 0) + ' targets)') : '⚠️ Waiting for VM';
+                  var qrStatus = window.QRious ? '✅ QRious Loaded' : '⚠️ Fallback API Mode';
+                  var stageStatus = stageCanvas ? ('✅ Ready (' + stageCanvas.width + '×' + stageCanvas.height + ')') : '⚠️ Not mounted';
+
+                  overlay.innerHTML =
+                      '<div class="tm-share-modal">' +
+                          '<div class="tm-share-modal-header">' +
+                              '<span>🛠️ TechMedha Studio Diagnostics</span>' +
+                              '<button class="tm-share-close-btn" id="tm-dbg-close">✕</button>' +
+                          '</div>' +
+                          '<div class="tm-share-modal-body">' +
+                              '<div class="tm-debug-row"><span>Build Version</span><b>' + (window.TM_BUILD_STAMP || 'Custom Build') + '</b></div>' +
+                              '<div class="tm-debug-row"><span>Scratch VM Engine</span><span class="' + (vm ? 'tm-debug-ok' : 'tm-debug-warn') + '">' + vmStatus + '</span></div>' +
+                              '<div class="tm-debug-row"><span>QR Code Engine</span><span class="tm-debug-ok">' + qrStatus + '</span></div>' +
+                              '<div class="tm-debug-row"><span>WebGL Stage Canvas</span><span class="tm-debug-ok">' + stageStatus + '</span></div>' +
+                              '<div class="tm-debug-row"><span>Project Title Input</span><span class="tm-debug-ok">' + (titleInput ? titleInput.value : 'Not mounted') + '</span></div>' +
+                              '<div class="tm-debug-row"><span>Storage Worker Redirects</span><span class="tm-debug-ok">' + workerFixCount + ' workers routed</span></div>' +
+                              '<div class="tm-debug-row"><span>Active Student Vault</span><span class="tm-debug-ok">' + (student ? (student.name + ' [' + student.passcode + ']') : 'Guest Mode') + '</span></div>' +
+                              '<div class="tm-share-field">' +
+                                  '<label>Recent Runtime Event Log</label>' +
+                                  '<div class="tm-project-list" style="font-family:monospace;font-size:11px;max-height:110px;">' +
+                                      debugLogs.slice(-10).reverse().map(function (l) { return '<div>' + l + '</div>'; }).join('') +
+                                  '</div>' +
+                              '</div>' +
+                              '<button class="tm-share-action-btn" id="tm-btn-force-reload" style="background: linear-gradient(90deg, #F97316, #EA580C);">' +
+                                  '🔄 Force Cache-Busted Page Reload' +
+                              '</button>' +
+                          '</div>' +
+                      '</div>';
+
+                  document.body.appendChild(overlay);
+                  document.getElementById('tm-dbg-close').onclick = function () { overlay.remove(); };
+                  overlay.onclick = function (ev) { if (ev.target === overlay) overlay.remove(); };
+                  document.getElementById('tm-btn-force-reload').onclick = function () {
+                      window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+                  };
+              }
+
+              document.addEventListener('keydown', function (e) {
+                  if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+                      e.preventDefault();
+                      openDebugModal();
+                  }
+              });
+
               function updateLoginButtonUI() {
                   var loginBtn = document.getElementById('tm-custom-login-btn');
                   if (!loginBtn) return;
@@ -1437,43 +1582,124 @@ jobs:
                   }
               }
 
-              // 4. Inject Share Button, Login Button, Enforce Title & Check Shared URL Links
+              // 8. Self-Healing Top Header Mount (Survives React Loading Screen Unmount/Remount)
               function ensureStudioEnhancements() {
-                  var titleInput = document.querySelector('[class*="project-title-input_title-field_"]');
-                  if (titleInput && titleInput.value === 'Scratch Project') {
+                  if (!document.body) return;
+
+                  var titleInput = findTitleInput();
+                  if (titleInput && (titleInput.value === 'Scratch Project' || !titleInput.value)) {
                       setProjectTitleInput('TechMedha Project');
                   }
 
+                  getScratchVM();
                   checkAndLoadSharedProjectFromUrl();
 
-                  if (!document.getElementById('tm-custom-share-btn') && titleInput && titleInput.parentElement) {
+                  var controlsWrap = document.getElementById('tm-header-controls');
+                  if (!controlsWrap) {
+                      controlsWrap = document.createElement('div');
+                      controlsWrap.id = 'tm-header-controls';
+
                       var shareBtn = document.createElement('button');
                       shareBtn.id = 'tm-custom-share-btn';
                       shareBtn.className = 'tm-share-header-btn';
                       shareBtn.type = 'button';
                       shareBtn.innerHTML = '<span>🚀 Share</span>';
                       shareBtn.onclick = openShareModal;
-                      titleInput.parentElement.insertAdjacentElement('afterend', shareBtn);
-                  }
 
-                  if (!document.getElementById('tm-custom-login-btn')) {
-                      var menuBar = document.querySelector('[class*="menu-bar_menu-bar_"]');
-                      if (menuBar) {
-                          var loginBtn = document.createElement('button');
-                          loginBtn.id = 'tm-custom-login-btn';
-                          loginBtn.type = 'button';
-                          loginBtn.onclick = openLoginModal;
-                          menuBar.appendChild(loginBtn);
-                          updateLoginButtonUI();
-                      }
+                      var loginBtn = document.createElement('button');
+                      loginBtn.id = 'tm-custom-login-btn';
+                      loginBtn.className = 'tm-login-header-btn';
+                      loginBtn.type = 'button';
+                      loginBtn.onclick = openLoginModal;
+
+                      var debugBtn = document.createElement('button');
+                      debugBtn.id = 'tm-custom-debug-btn';
+                      debugBtn.className = 'tm-debug-header-btn';
+                      debugBtn.type = 'button';
+                      debugBtn.title = 'TechMedha Studio Diagnostics (Ctrl+Shift+D)';
+                      debugBtn.innerHTML = '<span>🛠️</span>';
+                      debugBtn.onclick = openDebugModal;
+
+                      controlsWrap.appendChild(shareBtn);
+                      controlsWrap.appendChild(loginBtn);
+                      controlsWrap.appendChild(debugBtn);
+                      document.body.appendChild(controlsWrap);
+
+                      updateLoginButtonUI();
+                      logDebug('Mounted Share, Student Login, and Debug buttons in top bar.');
                   }
               }
 
-              setInterval(ensureStudioEnhancements, 800);
+              setInterval(ensureStudioEnhancements, 600);
+              window.addEventListener('DOMContentLoaded', ensureStudioEnhancements);
+              window.addEventListener('load', ensureStudioEnhancements);
           })();
           EOF
 
-          sed -i 's|</head>|<link rel="stylesheet" href="custom-theme.css"><script src="worker-fix.js"></script></head>|g' ./build/index.html
+          cat /tmp/tm-build-meta.js /tmp/tm-studio-core.js > /tmp/tm-studio-bundle.js
+
+          # Inject into src/playground/index.ejs BEFORE Webpack runs so HtmlWebpackPlugin compiles it into all pages
+          cat << 'EOF' > /tmp/patch-ejs.cjs
+          const fs = require('fs');
+          const ejsPath = 'src/playground/index.ejs';
+          if (fs.existsSync(ejsPath)) {
+              let ejs = fs.readFileSync(ejsPath, 'utf8');
+              const tag = '<link rel="stylesheet" href="tm-studio-bundle.css?v=' + Date.now() + '"><script src="tm-studio-bundle.js?v=' + Date.now() + '"></script></head>';
+              ejs = ejs.replace('</head>', tag);
+              fs.writeFileSync(ejsPath, ejs, 'utf8');
+              console.log('Injected bundle tags into src/playground/index.ejs');
+          }
+          EOF
+          node /tmp/patch-ejs.cjs
+
+      - name: Run Scratch Prepublish & Ensure Generated Assets Exist
+        run: |
+          node ./scripts/prepublish.mjs || true
+          mkdir -p src/generated
+          for file in $(grep -rhoE "generated/[a-zA-Z0-9._-]+(\.cjs|\.js)" src/ || true); do
+            target="src/$file"
+            if [ ! -f "$target" ]; then
+              printf "module.exports = '';\n" > "$target"
+            fi
+          done
+
+      - name: Build Custom Scratch GUI & Copy Storage Worker Chunks
+        run: |
+          npx webpack --stats-error-details
+          mkdir -p ./build/chunks ./build/static/chunks
+          find node_modules -path "*/scratch-storage/*" -name "*fetch-worker*" -exec cp {} ./build/chunks/ \; || true
+          find node_modules -path "*/scratch-storage/*" -name "*fetch-worker*" -exec cp {} ./build/static/chunks/ \; || true
+          cp /tmp/tm-studio-bundle.css ./build/tm-studio-bundle.css
+          cp /tmp/tm-studio-bundle.js ./build/tm-studio-bundle.js
+        env:
+          NODE_ENV: production
+          CI: false
+          NODE_OPTIONS: --max_old_space_size=6144
+
+      - name: Inline-Verify Bundle Inside Built HTML Files
+        run: |
+          cat << 'EOF' > /tmp/verify-build-html.cjs
+          const fs = require('fs');
+          const path = require('path');
+          const css = fs.readFileSync('/tmp/tm-studio-bundle.css', 'utf8');
+          const js = fs.readFileSync('/tmp/tm-studio-bundle.js', 'utf8');
+          const inlineBlock = `<style id="tm-inline-css">${css}</style><script id="tm-inline-js">${js}</script>`;
+
+          for (const file of fs.readdirSync('./build')) {
+              if (file.endsWith('.html')) {
+                  const full = path.join('./build', file);
+                  let html = fs.readFileSync(full, 'utf8');
+                  if (html.includes('</head>')) {
+                      html = html.replace('</head>', inlineBlock + '</head>');
+                  } else {
+                      html += inlineBlock;
+                  }
+                  fs.writeFileSync(full, html, 'utf8');
+                  console.log('Verified and inlined bundle into', full);
+              }
+          }
+          EOF
+          node /tmp/verify-build-html.cjs
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
