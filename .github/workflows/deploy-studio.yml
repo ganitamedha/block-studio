@@ -39,21 +39,24 @@ jobs:
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
 
-      - name: Restore Clean Core Files & Patch All 9 Block Categories in Scratch-Blocks & GUI
+      - name: Restore Clean Core Files, Expose VM & Patch All 9 Block Categories
         run: |
           # 1. Restore clean official core files via Git (keeps your MedhaBot mascot & logo untouched)
           git remote add upstream https://github.com/scratchfoundation/scratch-gui.git || true
           git fetch upstream develop --depth=1
-          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js
+          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js
 
-          # 2. Remove disabled "Share" / "See Project Page" buttons & point logo to https://www.techmedha.in/
+          # 2. Expose Scratch VM globally as window.vm so our custom Share button can export .sb3 & stage snapshots
+          sed -i 's/new VM()/(window.vm = new VM())/g' src/reducers/vm.js || true
+
+          # 3. Remove disabled default MIT placeholders & point logo to https://www.techmedha.in/
           sed -i 's/showComingSoon//g' src/playground/render-gui.jsx || true
           sed -i 's|https://scratch.mit.edu|https://www.techmedha.in/|g' src/playground/render-gui.jsx || true
 
-          # 3. Disable the bottom Backpack bar cleanly in gui.jsx
+          # 4. Disable the bottom Backpack bar cleanly in gui.jsx
           sed -i 's/backpackVisible ?/false ?/g' src/components/gui/gui.jsx || true
 
-          # 4. Single-pass Node.js script to replace all 9 category & block colors across src/, scratch-blocks, and scratch-vm
+          # 5. Single-pass Node.js script to replace all 9 category & block colors across src/, scratch-blocks, and scratch-vm
           cat << 'EOF' > /tmp/patch-colors.cjs
           const fs = require('fs');
           const path = require('path');
@@ -67,11 +70,11 @@ jobs:
               '#9966FF': '#9333EA', '#855CD6': '#7E22CE', '#774DCB': '#6B21A8',
               '#CCB3FF': '#9333EA', '#DDCCFF': '#7E22CE',
 
-              // 3. SOUND (Crimson Rose - includes make-toolbox-xml #D65CD6)
+              // 3. SOUND (Crimson Rose)
               '#CF63CF': '#E11D48', '#D65CD6': '#E11D48', '#C94FC9': '#BE123C', '#BD42BD': '#9F1239',
               '#E19DE1': '#E11D48', '#FFCCFF': '#BE123C',
 
-              // 4. EVENTS (Sunset Tangerine - includes make-toolbox-xml #FFD500)
+              // 4. EVENTS (Sunset Tangerine)
               '#FFBF00': '#EA580C', '#FFD500': '#EA580C', '#E6AC00': '#C2410C', '#CC9900': '#9A3412',
               '#FFE380': '#EA580C', '#FFECB3': '#C2410C',
 
@@ -79,11 +82,11 @@ jobs:
               '#FFAB19': '#D97706', '#EC9C13': '#B45309', '#CF8B17': '#92400E',
               '#FFBE4C': '#D97706', '#FFD899': '#B45309',
 
-              // 6. SENSING (Vibrant Lagoon Teal - includes make-toolbox-xml #4CBFE6)
+              // 6. SENSING (Vibrant Lagoon Teal)
               '#5CB1D6': '#0D9488', '#4CBFE6': '#0D9488', '#47A8D1': '#0F766E', '#2E8EB8': '#115E59',
               '#85C4E0': '#0D9488', '#B3E0F2': '#0F766E',
 
-              // 7. OPERATORS (Lush Jade Emerald - includes make-toolbox-xml #40BF4A)
+              // 7. OPERATORS (Lush Jade Emerald)
               '#59C059': '#059669', '#40BF4A': '#059669', '#46B946': '#047857', '#389438': '#065F46',
               '#7ECE7E': '#059669', '#B3E6B3': '#047857',
 
@@ -149,7 +152,7 @@ jobs:
           CI: false
           NODE_OPTIONS: --max_old_space_size=6144
 
-      - name: Inject Complete UI/UX Theme, Logo Redirect & Worker Fix
+      - name: Inject Complete UI/UX Theme, Custom Share Button & Worker Fix
         run: |
           cat << 'EOF' > ./build/custom-theme.css
           @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Poppins:wght@500;600;700&display=swap');
@@ -195,6 +198,128 @@ jobs:
 
           [class*="menu-bar_scratch-logo_"]:hover {
               transform: scale(1.05);
+          }
+
+          /* Custom Share Button in Top Menu Bar */
+          .tm-share-header-btn {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+              color: #FFFFFF;
+              border: 1.5px solid rgba(255, 255, 255, 0.65);
+              border-radius: 20px;
+              padding: 5px 14px;
+              margin-left: 10px;
+              font-size: 13px;
+              font-weight: 700;
+              cursor: pointer;
+              box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35);
+              transition: all 0.15s ease;
+              height: 32px;
+              align-self: center;
+          }
+
+          .tm-share-header-btn:hover {
+              background: linear-gradient(135deg, #EA580C 0%, #C2410C 100%);
+              transform: translateY(-1px);
+              box-shadow: 0 4px 12px rgba(249, 115, 22, 0.5);
+          }
+
+          /* Share Modal Overlay & Card */
+          .tm-share-overlay {
+              position: fixed;
+              inset: 0;
+              background: rgba(15, 23, 42, 0.65);
+              backdrop-filter: blur(4px);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 99999;
+              font-family: 'Poppins', 'Nunito', sans-serif;
+          }
+
+          .tm-share-modal {
+              background: #FFFFFF;
+              width: 92%;
+              max-width: 460px;
+              border-radius: 16px;
+              border: 2px solid #99F6E4;
+              box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+              overflow: hidden;
+              color: #1E293B;
+          }
+
+          .tm-share-modal-header {
+              background: linear-gradient(90deg, #0D9488 0%, #0284C7 100%);
+              color: #FFFFFF;
+              padding: 14px 20px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              font-weight: 700;
+              font-size: 16px;
+          }
+
+          .tm-share-close-btn {
+              background: rgba(255, 255, 255, 0.2);
+              border: none;
+              color: #FFFFFF;
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              cursor: pointer;
+              font-weight: 700;
+              font-size: 15px;
+          }
+
+          .tm-share-modal-body {
+              padding: 20px;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+          }
+
+          .tm-share-field label {
+              display: block;
+              font-size: 12px;
+              font-weight: 700;
+              color: #0F766E;
+              margin-bottom: 4px;
+              text-transform: uppercase;
+          }
+
+          .tm-share-field input {
+              width: 100%;
+              box-sizing: border-box;
+              padding: 9px 12px;
+              border: 1.5px solid #99F6E4;
+              border-radius: 10px;
+              font-size: 14px;
+              font-weight: 600;
+              color: #1E293B;
+              background: #F0FDFA;
+          }
+
+          .tm-share-action-btn {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              width: 100%;
+              padding: 11px 14px;
+              border: none;
+              border-radius: 10px;
+              font-size: 14px;
+              font-weight: 700;
+              cursor: pointer;
+              transition: transform 0.12s ease, opacity 0.12s ease;
+              color: #FFFFFF;
+          }
+
+          .tm-share-action-btn:hover {
+              transform: translateY(-1px);
+              opacity: 0.96;
           }
 
           /* Main Workspace & Code / Costumes / Sounds Tabs */
@@ -338,7 +463,7 @@ jobs:
           }
           EOF
 
-          # Route /chunks/fetch-worker requests AND force Logo Click -> https://www.techmedha.in/
+          # Worker Fix + Logo Redirect + Custom Share Button & Modal
           cat << 'EOF' > ./build/worker-fix.js
           (function () {
               var OriginalWorker = window.Worker;
@@ -351,7 +476,7 @@ jobs:
               };
               window.Worker.prototype = OriginalWorker.prototype;
 
-              // Redirect top-left Logo Click to https://www.techmedha.in/
+              // 1. Redirect top-left Logo Click to https://www.techmedha.in/
               document.addEventListener('click', function (e) {
                   var logo = e.target && e.target.closest && e.target.closest('[class*="menu-bar_scratch-logo_"]');
                   if (logo) {
@@ -369,6 +494,173 @@ jobs:
                       }
                   }
               }, true);
+
+              // Helper: Get current Project Title
+              function getProjectTitle() {
+                  var input = document.querySelector('[class*="project-title-input_title-field_"]');
+                  return (input && input.value && input.value.trim()) ? input.value.trim() : 'TechMedha-Project';
+              }
+
+              // Helper: Trigger browser download of a Blob
+              function downloadBlob(blob, filename) {
+                  var url = URL.createObjectURL(blob);
+                  var a = document.createElement('a');
+                  a.href = url;
+                  a.download = filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  setTimeout(function () {
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                  }, 500);
+              }
+
+              // 2. Open Custom TechMedha Share Modal
+              function openShareModal() {
+                  var existing = document.getElementById('tm-share-overlay');
+                  if (existing) existing.remove();
+
+                  var overlay = document.createElement('div');
+                  overlay.id = 'tm-share-overlay';
+                  overlay.className = 'tm-share-overlay';
+
+                  var defaultTitle = getProjectTitle();
+
+                  overlay.innerHTML =
+                      '<div class="tm-share-modal">' +
+                          '<div class="tm-share-modal-header">' +
+                              '<span>🚀 Share Your TechMedha Project</span>' +
+                              '<button class="tm-share-close-btn" id="tm-share-close">✕</button>' +
+                          '</div>' +
+                          '<div class="tm-share-modal-body">' +
+                              '<div class="tm-share-field">' +
+                                  '<label>Project Title</label>' +
+                                  '<input type="text" id="tm-share-title" value="' + defaultTitle.replace(/"/g, '&quot;') + '" />' +
+                              '</div>' +
+                              '<div class="tm-share-field">' +
+                                  '<label>Creator / Student Name</label>' +
+                                  '<input type="text" id="tm-share-student" placeholder="Enter your name (e.g., Aarav)" />' +
+                              '</div>' +
+                              '<button class="tm-share-action-btn" id="tm-btn-snapshot" style="background: linear-gradient(90deg, #0D9488, #0284C7);">' +
+                                  '📸 Download Project Showcase Card (.PNG)' +
+                              '</button>' +
+                              '<button class="tm-share-action-btn" id="tm-btn-native-share" style="background: linear-gradient(90deg, #F97316, #EA580C);">' +
+                                  '📤 Share / Download Project File (.SB3)' +
+                              '</button>' +
+                              '<button class="tm-share-action-btn" id="tm-btn-whatsapp" style="background: #16A34A;">' +
+                                  '💬 Share Project on WhatsApp' +
+                              '</button>' +
+                          '</div>' +
+                      '</div>';
+
+                  document.body.appendChild(overlay);
+
+                  document.getElementById('tm-share-close').onclick = function () {
+                      overlay.remove();
+                  };
+                  overlay.onclick = function (ev) {
+                      if (ev.target === overlay) overlay.remove();
+                  };
+
+                  // Feature A: Download Branded Showcase Snapshot Card (.PNG)
+                  document.getElementById('tm-btn-snapshot').onclick = function () {
+                      var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha Project';
+                      var studentName = document.getElementById('tm-share-student').value.trim() || 'Young Innovator';
+
+                      var stageCanvas = document.querySelector('[class*="stage_stage_"] canvas');
+                      if (window.vm && window.vm.renderer && typeof window.vm.renderer.draw === 'function') {
+                          window.vm.renderer.draw();
+                      }
+
+                      var cardCanvas = document.createElement('canvas');
+                      cardCanvas.width = 640;
+                      cardCanvas.height = 520;
+                      var ctx = cardCanvas.getContext('2d');
+
+                      // Card Background & Header
+                      ctx.fillStyle = '#F0FDFA';
+                      ctx.fillRect(0, 0, 640, 520);
+                      var grad = ctx.createLinearGradient(0, 0, 640, 0);
+                      grad.addColorStop(0, '#0D9488');
+                      grad.addColorStop(1, '#0284C7');
+                      ctx.fillStyle = grad;
+                      ctx.fillRect(0, 0, 640, 72);
+
+                      ctx.fillStyle = '#FFFFFF';
+                      ctx.font = 'bold 22px sans-serif';
+                      ctx.fillText(projTitle, 24, 34);
+                      ctx.font = '600 14px sans-serif';
+                      ctx.fillText('Created by: ' + studentName, 24, 56);
+
+                      // Draw Stage Image
+                      ctx.fillStyle = '#FFFFFF';
+                      ctx.fillRect(76, 90, 488, 368);
+                      if (stageCanvas) {
+                          ctx.drawImage(stageCanvas, 80, 94, 480, 360);
+                      }
+
+                      // Footer Banner
+                      ctx.fillStyle = '#0F766E';
+                      ctx.font = 'bold 15px sans-serif';
+                      ctx.fillText('Built with TechMedha Block Coding Studio • www.techmedha.in', 95, 492);
+
+                      cardCanvas.toBlob(function (blob) {
+                          if (blob) downloadBlob(blob, projTitle.replace(/\s+/g, '-') + '-Showcase.png');
+                      }, 'image/png');
+                  };
+
+                  // Feature B: Share or Download .SB3 File via Scratch VM
+                  document.getElementById('tm-btn-native-share').onclick = function () {
+                      var projTitle = document.getElementById('tm-share-title').value.trim() || 'TechMedha-Project';
+                      var studentName = document.getElementById('tm-share-student').value.trim();
+                      var fileName = projTitle.replace(/\s+/g, '-') + '.sb3';
+
+                      if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
+                          window.vm.saveProjectSb3().then(function (blob) {
+                              var file = new File([blob], fileName, { type: 'application/x.scratch.sb3' });
+                              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                                  navigator.share({
+                                      title: projTitle,
+                                      text: 'Check out "' + projTitle + '"' + (studentName ? ' by ' + studentName : '') + ' built on TechMedha Studio (https://www.techmedha.in/)!',
+                                      files: [file]
+                                  }).catch(function () {
+                                      downloadBlob(blob, fileName);
+                                  });
+                              } else {
+                                  downloadBlob(blob, fileName);
+                              }
+                          });
+                      }
+                  };
+
+                  // Feature C: Share on WhatsApp
+                  document.getElementById('tm-btn-whatsapp').onclick = function () {
+                      var projTitle = document.getElementById('tm-share-title').value.trim() || 'My Coding Project';
+                      var studentName = document.getElementById('tm-share-student').value.trim();
+                      var msg = '🌟 Check out the coding project *"' + projTitle + '"*' +
+                          (studentName ? ' created by *' + studentName + '*' : '') +
+                          ' on TechMedha Block Coding Studio! 🚀\nhttps://www.techmedha.in/';
+                      window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
+                  };
+              }
+
+              // 3. Inject the Share Button into the Top Menu Bar Next to the Project Title
+              function ensureShareButton() {
+                  if (document.getElementById('tm-custom-share-btn')) return;
+                  var titleInput = document.querySelector('[class*="project-title-input_title-field_"]');
+                  var targetContainer = titleInput ? titleInput.parentElement : document.querySelector('[class*="menu-bar_main-menu_"]');
+                  if (targetContainer) {
+                      var btn = document.createElement('button');
+                      btn.id = 'tm-custom-share-btn';
+                      btn.className = 'tm-share-header-btn';
+                      btn.type = 'button';
+                      btn.innerHTML = '<span>🚀 Share</span>';
+                      btn.onclick = openShareModal;
+                      targetContainer.insertAdjacentElement('afterend', btn);
+                  }
+              }
+
+              setInterval(ensureShareButton, 1000);
           })();
           EOF
 
