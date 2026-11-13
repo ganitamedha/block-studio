@@ -39,14 +39,14 @@ jobs:
       - name: Clean Install Exact Locked Dependencies
         run: npm ci --ignore-scripts
 
-      - name: Restore Official Core Files, Hook VM, Fix WebGL Snapshots & Patch All 9 Block Categories
+      - name: Restore Core Files (Keep Custom Logo & Mascot), Hook VM & Patch Block Colors
         run: |
-          # 1. Restore clean official core files via Git (preserves your custom MedhaBot mascot & logo)
+          # 1. Restore core files WITHOUT touching src/components/menu-bar (preserves your TechMedha logo & MedhaBot mascot)
           git remote add upstream https://github.com/scratchfoundation/scratch-gui.git || true
           git fetch upstream develop --depth=1
-          git checkout upstream/develop -- src/playground src/components/gui src/components/menu-bar src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js src/lib/vm-listener-hoc.jsx
+          git checkout upstream/develop -- src/playground src/components/gui src/css src/lib/themes src/lib/make-toolbox-xml.js src/lib/storage.js src/reducers/vm.js src/reducers/project-title.js src/lib/vm-listener-hoc.jsx
 
-          # 2. Hook Scratch VM in both vm.js reducer and vm-listener-hoc.jsx so window.vm is always available
+          # 2. Hook Scratch VM in both vm.js reducer and vm-listener-hoc.jsx so window.vm is always accessible
           sed -i 's/new VM()/(window.vm = new VM())/g' src/reducers/vm.js || true
           sed -i 's/this.props.vm.attachV2SVGAdapter/(window.vm = this.props.vm) \&\& this.props.vm.attachV2SVGAdapter/g' src/lib/vm-listener-hoc.jsx || true
 
@@ -140,7 +140,7 @@ jobs:
           EOF
           node /tmp/patch-studio.cjs
 
-      - name: Prepare UI/UX Theme, Share + QR Engine, Student Vault & Debug Diagnostics Bundle
+      - name: Prepare UI/UX Theme, Short-Link QR Engine, Project Resumer & Student Vault
         run: |
           BUILD_STAMP="$(date -u '+%Y-%m-%d %H:%M UTC') (Run #${GITHUB_RUN_NUMBER})"
 
@@ -191,7 +191,7 @@ jobs:
               transform: scale(1.05);
           }
 
-          /* Guaranteed Visible Top-Right Studio Toolbar (Share + Login + Debug) */
+          /* Top-Right Studio Toolbar (Share + Login + Debug) */
           #tm-header-controls {
               position: fixed !important;
               top: 7px !important;
@@ -371,8 +371,8 @@ jobs:
               padding: 7px 10px;
               border: 1.5px solid #0284C7;
               border-radius: 8px;
-              font-size: 12px;
-              font-weight: 600;
+              font-size: 12.5px;
+              font-weight: 700;
               color: #0F766E;
               background: #FFFFFF;
           }
@@ -516,7 +516,6 @@ jobs:
               margin-left: 4px;
           }
 
-          /* Debug Status Row */
           .tm-debug-row {
               display: flex;
               justify-content: space-between;
@@ -659,7 +658,7 @@ jobs:
                   debugLogs.push(entry);
                   console.log('%c[TechMedha Studio]', 'color:#0D9488;font-weight:bold;', msg);
               }
-              logDebug('Initializing TechMedha Studio Enhancements (' + (window.TM_BUILD_STAMP || 'Live') + ')');
+              logDebug('Initializing TechMedha Studio (' + (window.TM_BUILD_STAMP || 'Live') + ')');
 
               // 1. Subfolder Web Worker Path Fix for Sprites, Backdrops, Costumes & Sounds
               var workerFixCount = 0;
@@ -681,16 +680,17 @@ jobs:
                   var s = document.createElement('script');
                   s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
                   s.async = true;
-                  s.onload = function () { logDebug('QRious QR Code engine loaded.'); };
+                  s.onload = function () { logDebug('QRious QR Code engine ready.'); };
                   document.head.appendChild(s);
               })();
 
-              // 3. Guaranteed Scratch VM Finder (Checks window.vm + React Fiber Tree fallback)
+              // 3. Guaranteed Scratch VM Finder (window.vm + React Fiber fallback)
               function getScratchVM() {
                   if (window.vm && typeof window.vm.saveProjectSb3 === 'function') {
                       return window.vm;
                   }
                   var rootEl = document.getElementById('app') || document.body;
+                  if (!rootEl) return null;
                   var walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_ELEMENT, null, false);
                   var node;
                   while ((node = walker.nextNode())) {
@@ -703,12 +703,12 @@ jobs:
                               while (fiber && depth < 15) {
                                   if (fiber.memoizedProps && fiber.memoizedProps.vm && typeof fiber.memoizedProps.vm.saveProjectSb3 === 'function') {
                                       window.vm = fiber.memoizedProps.vm;
-                                      logDebug('Discovered Scratch VM via React Fiber.');
+                                      logDebug('Connected to Scratch VM via React Fiber.');
                                       return window.vm;
                                   }
                                   if (fiber.stateNode && fiber.stateNode.props && fiber.stateNode.props.vm && typeof fiber.stateNode.props.vm.saveProjectSb3 === 'function') {
                                       window.vm = fiber.stateNode.props.vm;
-                                      logDebug('Discovered Scratch VM via React StateNode.');
+                                      logDebug('Connected to Scratch VM via React StateNode.');
                                       return window.vm;
                                   }
                                   fiber = fiber.return;
@@ -739,7 +739,7 @@ jobs:
                   }
               }, true);
 
-              function showToast(msg) {
+              function showToast(msg, durationMs) {
                   var old = document.getElementById('tm-toast-banner');
                   if (old) old.remove();
                   var t = document.createElement('div');
@@ -749,7 +749,7 @@ jobs:
                   document.body.appendChild(t);
                   setTimeout(function () {
                       if (t.parentNode) t.remove();
-                  }, 5000);
+                  }, durationMs || 5500);
               }
 
               function generateSixCharCode() {
@@ -831,72 +831,285 @@ jobs:
                   }, 500);
               }
 
-              async function compressToBase64Url(str) {
-                  if (typeof CompressionStream !== 'undefined') {
-                      var bytes = new TextEncoder().encode(str);
-                      var cs = new CompressionStream('deflate-raw');
-                      var writer = cs.writable.getWriter();
-                      writer.write(bytes);
-                      writer.close();
-                      var buf = await new Response(cs.readable).arrayBuffer();
-                      var bin = '';
-                      var u8 = new Uint8Array(buf);
-                      for (var i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
-                      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                  }
-                  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+              // Binary Blob <-> Base64 helpers for Cloud .SB3 Packaging
+              function blobToBase64(blob) {
+                  return new Promise(function (resolve, reject) {
+                      var reader = new FileReader();
+                      reader.onloadend = function () {
+                          var dataUrl = reader.result || '';
+                          var commaIdx = dataUrl.indexOf(',');
+                          resolve(commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl);
+                      };
+                      reader.onerror = reject;
+                      reader.readAsDataURL(blob);
+                  });
               }
 
-              async function decompressFromBase64Url(b64url) {
-                  var b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-                  while (b64.length % 4) b64 += '=';
-                  var bin = atob(b64);
-                  var u8 = new Uint8Array(bin.length);
-                  for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-                  if (typeof DecompressionStream !== 'undefined') {
-                      var ds = new DecompressionStream('deflate-raw');
-                      var writer = ds.writable.getWriter();
-                      writer.write(u8);
-                      writer.close();
-                      var buf = await new Response(ds.readable).arrayBuffer();
-                      return new TextDecoder().decode(buf);
+              function base64ToArrayBuffer(b64) {
+                  var binStr = atob(b64.replace(/\s+/g, ''));
+                  var len = binStr.length;
+                  var bytes = new Uint8Array(len);
+                  for (var i = 0; i < len; i++) {
+                      bytes[i] = binStr.charCodeAt(i);
                   }
-                  return decodeURIComponent(escape(bin));
+                  return bytes.buffer;
               }
 
+              // IndexedDB Helper for Student Vault & Local Short-Link Cache
+              function openProjectDB(callback) {
+                  var req = indexedDB.open('TechMedhaStudioVault', 2);
+                  req.onupgradeneeded = function (e) {
+                      var db = e.target.result;
+                      if (!db.objectStoreNames.contains('projects')) {
+                          db.createObjectStore('projects', { keyPath: 'id' });
+                      }
+                      if (!db.objectStoreNames.contains('shares')) {
+                          db.createObjectStore('shares', { keyPath: 'code' });
+                      }
+                  };
+                  req.onsuccess = function (e) {
+                      callback(e.target.result);
+                  };
+              }
+
+              function saveLocalShareBackup(code, payloadStr) {
+                  try {
+                      openProjectDB(function (db) {
+                          if (!db.objectStoreNames.contains('shares')) return;
+                          var tx = db.transaction('shares', 'readwrite');
+                          tx.objectStore('shares').put({ code: code, payload: payloadStr });
+                      });
+                  } catch (e) {}
+              }
+
+              function getLocalShareBackup(code) {
+                  return new Promise(function (resolve) {
+                      try {
+                          openProjectDB(function (db) {
+                              if (!db.objectStoreNames.contains('shares')) {
+                                  resolve(null);
+                                  return;
+                              }
+                              var tx = db.transaction('shares', 'readonly');
+                              var req = tx.objectStore('shares').get(code);
+                              req.onsuccess = function () {
+                                  resolve(req.result ? req.result.payload : null);
+                              };
+                              req.onerror = function () { resolve(null); };
+                          });
+                      } catch (e) {
+                          resolve(null);
+                      }
+                  });
+              }
+
+              // 5. Multi-Provider Short Shareable Link Generator (Always produces a short ~54-char URL)
               async function createShareableProjectLink(projTitle, studentName, schoolInfo) {
                   var baseUrl = window.location.origin + window.location.pathname;
-                  var qParams = 't=' + encodeURIComponent(projTitle) +
-                      (studentName ? '&by=' + encodeURIComponent(studentName) : '') +
-                      (schoolInfo ? '&sc=' + encodeURIComponent(schoolInfo) : '');
-
                   var vm = getScratchVM();
-                  if (vm && typeof vm.saveProjectSb3 === 'function') {
-                      try {
-                          var sb3Blob = await vm.saveProjectSb3();
-                          var resp = await fetch('https://bytebin.lucko.me/post', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/octet-stream' },
-                              body: sb3Blob
-                          });
-                          if (resp.ok) {
-                              var data = await resp.json();
-                              if (data && data.key) {
-                                  logDebug('Generated short cloud share key: ' + data.key);
-                                  return baseUrl + '?s=' + encodeURIComponent(data.key) + '&' + qParams;
+                  if (!vm || typeof vm.saveProjectSb3 !== 'function') {
+                      logDebug('Cannot create share link: VM not connected.');
+                      return baseUrl;
+                  }
+
+                  var sb3Blob = await vm.saveProjectSb3();
+                  var sb3B64 = await blobToBase64(sb3Blob);
+                  var payloadStr = JSON.stringify({
+                      v: 2,
+                      t: projTitle || 'TechMedha Project',
+                      by: studentName || '',
+                      sc: schoolInfo || '',
+                      sb3: sb3B64
+                  });
+
+                  // Provider 1: Bytebin (CORS Simple Request using text/plain - no preflight failure)
+                  try {
+                      var r1 = await fetch('https://bytebin.lucko.me/post', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                          body: payloadStr
+                      });
+                      if (r1.ok) {
+                          var d1 = await r1.json();
+                          if (d1 && d1.key) {
+                              var code1 = 'b_' + d1.key;
+                              saveLocalShareBackup(code1, payloadStr);
+                              logDebug('Created short share link via Provider 1 (' + code1 + ')');
+                              return baseUrl + '?p=' + encodeURIComponent(code1);
+                          }
+                      }
+                  } catch (e1) {
+                      logDebug('Provider 1 notice: ' + e1.message);
+                  }
+
+                  // Provider 2: pastes.dev API (CORS Simple Request using text/plain)
+                  try {
+                      var r2 = await fetch('https://api.pastes.dev/post', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                          body: payloadStr
+                      });
+                      if (r2.ok) {
+                          var d2 = await r2.json();
+                          if (d2 && d2.key) {
+                              var code2 = 'p_' + d2.key;
+                              saveLocalShareBackup(code2, payloadStr);
+                              logDebug('Created short share link via Provider 2 (' + code2 + ')');
+                              return baseUrl + '?p=' + encodeURIComponent(code2);
+                          }
+                      }
+                  } catch (e2) {
+                      logDebug('Provider 2 notice: ' + e2.message);
+                  }
+
+                  // Provider 3: dpaste API v2 (CORS Simple Request using form-urlencoded)
+                  try {
+                      var formBody = new URLSearchParams();
+                      formBody.append('content', payloadStr);
+                      formBody.append('syntax', 'text');
+                      formBody.append('expiry_days', '365');
+                      var r3 = await fetch('https://dpaste.com/api/v2/', {
+                          method: 'POST',
+                          body: formBody
+                      });
+                      if (r3.ok) {
+                          var txtUrl = (await r3.text()).trim();
+                          var m = txtUrl.match(/dpaste\.com\/([A-Za-z0-9]+)/);
+                          if (m && m[1]) {
+                              var code3 = 'd_' + m[1];
+                              saveLocalShareBackup(code3, payloadStr);
+                              logDebug('Created short share link via Provider 3 (' + code3 + ')');
+                              return baseUrl + '?p=' + encodeURIComponent(code3);
+                          }
+                      }
+                  } catch (e3) {
+                      logDebug('Provider 3 notice: ' + e3.message);
+                  }
+
+                  // Offline / Local Lab Fallback: Short 6-char code stored in browser IndexedDB
+                  var localCode = 'l_' + generateSixCharCode();
+                  saveLocalShareBackup(localCode, payloadStr);
+                  logDebug('Created local short share link (' + localCode + ')');
+                  return baseUrl + '?p=' + encodeURIComponent(localCode);
+              }
+
+              // Fetch Shared Project Payload by Short Code (p=b_xxx, p=p_xxx, p=d_xxx, or p=l_xxx)
+              async function fetchSharedPayload(shortCode) {
+                  // Check local IndexedDB backup first for instant zero-latency load if on same device
+                  var localData = await getLocalShareBackup(shortCode);
+                  if (localData) {
+                      return JSON.parse(localData);
+                  }
+
+                  var prefix = shortCode.slice(0, 2);
+                  var rawKey = shortCode.slice(2);
+                  var url = '';
+
+                  if (prefix === 'b_') {
+                      url = 'https://bytebin.lucko.me/' + encodeURIComponent(rawKey);
+                  } else if (prefix === 'p_') {
+                      url = 'https://api.pastes.dev/' + encodeURIComponent(rawKey);
+                  } else if (prefix === 'd_') {
+                      url = 'https://dpaste.com/' + encodeURIComponent(rawKey) + '.txt';
+                  } else {
+                      url = 'https://bytebin.lucko.me/' + encodeURIComponent(shortCode);
+                  }
+
+                  var resp = await fetch(url);
+                  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                  var text = await resp.text();
+                  return JSON.parse(text);
+              }
+
+              // Helper: Activate First Sprite Target & Refresh Blockly Workspace After Loading a Project
+              function activateLoadedProjectWorkspace(vm, titleText) {
+                  try {
+                      if (titleText) {
+                          setProjectTitleInput(titleText);
+                      }
+                      if (vm && vm.runtime && Array.isArray(vm.runtime.targets)) {
+                          var spriteTarget = null;
+                          for (var i = 0; i < vm.runtime.targets.length; i++) {
+                              if (!vm.runtime.targets[i].isStage) {
+                                  spriteTarget = vm.runtime.targets[i];
+                                  break;
                               }
                           }
-                      } catch (err) {
-                          logDebug('Cloud shortener fallback used: ' + err.message);
+                          if (spriteTarget && typeof vm.setEditingTarget === 'function') {
+                              vm.setEditingTarget(spriteTarget.id);
+                          }
+                          if (typeof vm.emitWorkspaceUpdate === 'function') {
+                              vm.emitWorkspaceUpdate();
+                          }
+                          if (typeof vm.runtime.requestRedraw === 'function') {
+                              vm.runtime.requestRedraw();
+                          }
+                          if (vm.renderer && typeof vm.renderer.draw === 'function') {
+                              vm.renderer.draw();
+                          }
                       }
-
-                      try {
-                          var jsonStr = vm.toJSON();
-                          var compressed = await compressToBase64Url(jsonStr);
-                          return baseUrl + '?' + qParams + '#z=' + compressed;
-                      } catch (e2) {}
+                  } catch (e) {
+                      logDebug('Workspace refresh notice: ' + e.message);
                   }
-                  return baseUrl;
+              }
+
+              // 6. Reliable Shared Project Resumer (Waits for Scratch Startup Screen to Close Before Loading)
+              var sharedLoadState = 'idle'; // 'idle' | 'loading' | 'done'
+              var cachedSharedBuffer = null;
+              var cachedSharedMeta = null;
+
+              async function checkAndLoadSharedProjectFromUrl() {
+                  if (sharedLoadState !== 'idle') return;
+
+                  var params = new URLSearchParams(window.location.search);
+                  var shortCode = params.get('p') || params.get('s');
+                  if (!shortCode) {
+                      sharedLoadState = 'done';
+                      return;
+                  }
+
+                  // Wait until Scratch's initial loading screen is gone AND VM has finished its default startup load
+                  var loaderOverlay = document.querySelector('[class*="loader_background"]');
+                  var vm = getScratchVM();
+                  var stageCanvas = document.querySelector('[class*="stage_stage"] canvas');
+                  if (loaderOverlay || !vm || !stageCanvas || !vm.runtime || !vm.runtime.targets || vm.runtime.targets.length === 0) {
+                      return;
+                  }
+
+                  sharedLoadState = 'loading';
+                  logDebug('Detected shared project code in URL: ' + shortCode);
+                  showToast('⏳ Resuming shared project... Please wait', 8000);
+
+                  try {
+                      var payload = await fetchSharedPayload(shortCode);
+                      if (payload && payload.sb3) {
+                          var arrayBuf = base64ToArrayBuffer(payload.sb3);
+                          cachedSharedBuffer = arrayBuf;
+                          cachedSharedMeta = payload;
+
+                          // Wait 400ms after initial boot settles so default project loader cannot overwrite us
+                          await new Promise(function (r) { setTimeout(r, 400); });
+                          await vm.loadProject(arrayBuf.slice(0));
+                          activateLoadedProjectWorkspace(vm, payload.t || 'Shared TechMedha Project');
+
+                          // Re-verify 1.2s later in case React mounted late
+                          setTimeout(function () {
+                              if (cachedSharedMeta && cachedSharedMeta.t) {
+                                  activateLoadedProjectWorkspace(vm, cachedSharedMeta.t);
+                              }
+                          }, 1200);
+
+                          var creatorText = payload.by ? (' by ' + payload.by) : '';
+                          var schoolText = payload.sc ? (' (' + payload.sc + ')') : '';
+                          showToast('✨ Resumed "' + (payload.t || 'TechMedha Project') + '"' + creatorText + schoolText + '!', 6000);
+                          logDebug('Successfully resumed shared project: ' + (payload.t || shortCode));
+                      }
+                      sharedLoadState = 'done';
+                  } catch (err) {
+                      sharedLoadState = 'done';
+                      logDebug('Failed to resume shared project: ' + err.message);
+                      showToast('⚠️ Could not resume shared project (' + err.message + ').', 6000);
+                  }
               }
 
               function renderQrToCanvas(canvasEl, urlText, sizePx, onDone) {
@@ -929,52 +1142,6 @@ jobs:
                       };
                       img.onerror = function () { if (onDone) onDone(); };
                       img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=' + (sizePx || 180) + 'x' + (sizePx || 180) + '&data=' + encodeURIComponent(urlText);
-                  }
-              }
-
-              var sharedProjectChecked = false;
-              async function checkAndLoadSharedProjectFromUrl() {
-                  if (sharedProjectChecked) return;
-                  var params = new URLSearchParams(window.location.search);
-                  var shareKey = params.get('s');
-                  var hashStr = window.location.hash || '';
-                  var hasHashProj = hashStr.indexOf('#z=') === 0;
-
-                  if (!shareKey && !hasHashProj) {
-                      sharedProjectChecked = true;
-                      return;
-                  }
-                  var vm = getScratchVM();
-                  if (!vm || !vm.runtime || !vm.runtime.targets || !vm.runtime.targets.length) {
-                      return;
-                  }
-                  sharedProjectChecked = true;
-
-                  var sharedTitle = params.get('t') || 'Shared TechMedha Project';
-                  var sharedBy = params.get('by') || '';
-                  var sharedSchool = params.get('sc') || '';
-
-                  try {
-                      showToast('⏳ Loading shared project "' + sharedTitle + '"...');
-                      if (shareKey) {
-                          var resp = await fetch('https://bytebin.lucko.me/' + encodeURIComponent(shareKey));
-                          if (resp.ok) {
-                              var buf = await resp.arrayBuffer();
-                              await vm.loadProject(buf);
-                              setProjectTitleInput(sharedTitle);
-                              showToast('✨ Loaded "' + sharedTitle + '"' + (sharedBy ? ' by ' + sharedBy : '') + (sharedSchool ? ' (' + sharedSchool + ')' : '') + '!');
-                              return;
-                          }
-                      }
-                      if (hasHashProj) {
-                          var rawJson = await decompressFromBase64Url(hashStr.slice(3));
-                          await vm.loadProject(rawJson);
-                          setProjectTitleInput(sharedTitle);
-                          showToast('✨ Loaded "' + sharedTitle + '"' + (sharedBy ? ' by ' + sharedBy : '') + '!');
-                      }
-                  } catch (err) {
-                      logDebug('Failed to load shared project: ' + err.message);
-                      showToast('⚠️ Could not load shared project link.');
                   }
               }
 
@@ -1027,19 +1194,6 @@ jobs:
                   }, 'image/png');
               }
 
-              function openProjectDB(callback) {
-                  var req = indexedDB.open('TechMedhaStudioVault', 1);
-                  req.onupgradeneeded = function (e) {
-                      var db = e.target.result;
-                      if (!db.objectStoreNames.contains('projects')) {
-                          db.createObjectStore('projects', { keyPath: 'id' });
-                      }
-                  };
-                  req.onsuccess = function (e) {
-                      callback(e.target.result);
-                  };
-              }
-
               function saveProjectToStudentVault(student, title, sb3Blob, onDone) {
                   openProjectDB(function (db) {
                       var tx = db.transaction('projects', 'readwrite');
@@ -1085,7 +1239,7 @@ jobs:
                   });
               }
 
-              // 5. Open Custom TechMedha Share Modal (Short Shareable Link + QR Code + Showcase Card with QR)
+              // 7. Open Custom TechMedha Share Modal (Short Shareable Link + QR Code + Showcase Card with QR)
               function openShareModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1122,10 +1276,10 @@ jobs:
                                   '</div>' +
                               '</div>' +
                               '<button class="tm-share-action-btn" id="tm-btn-gen-qr" style="background: linear-gradient(90deg, #7C3AED, #0284C7);">' +
-                                  '🔗 Generate Shareable Link & QR Code' +
+                                  '🔗 Generate Short Shareable Link & QR Code' +
                               '</button>' +
                               '<div class="tm-qr-box" id="tm-qr-box">' +
-                                  '<div style="font-size:12px;font-weight:700;color:#0F766E;">📱 Scan QR Code to Open Project Live</div>' +
+                                  '<div style="font-size:12px;font-weight:700;color:#0F766E;">📱 Scan QR Code or Copy Short Link to Resume Project</div>' +
                                   '<div class="tm-qr-canvas-wrap">' +
                                       '<canvas id="tm-qr-canvas" width="170" height="170"></canvas>' +
                                   '</div>' +
@@ -1161,9 +1315,9 @@ jobs:
                           var schoolInfo = document.getElementById('tm-share-school').value.trim();
 
                           var genBtn = document.getElementById('tm-btn-gen-qr');
-                          genBtn.textContent = '⏳ Creating Shareable Link & QR Code...';
+                          genBtn.textContent = '⏳ Creating Short Link & QR Code...';
                           lastGeneratedUrl = await createShareableProjectLink(projTitle, studentName, schoolInfo);
-                          genBtn.textContent = '🔄 Refresh Shareable Link & QR Code';
+                          genBtn.textContent = '🔄 Refresh Short Shareable Link & QR Code';
 
                           var qrBox = document.getElementById('tm-qr-box');
                           qrBox.className = 'tm-qr-box active';
@@ -1246,7 +1400,7 @@ jobs:
                       }
 
                       ctx.fillStyle = '#FFFFFF';
-                      ctx.fillRect(524, 100, 134, 174);
+                      ctx.fillRect(524, 100, 134, 190);
                       var qrCanvas = document.getElementById('tm-qr-canvas');
                       if (qrCanvas) {
                           ctx.drawImage(qrCanvas, 531, 108, 120, 120);
@@ -1256,6 +1410,10 @@ jobs:
                       ctx.fillText('SCAN TO PLAY', 550, 246);
                       ctx.font = '600 10px sans-serif';
                       ctx.fillText('LIVE PROJECT', 552, 262);
+                      ctx.fillStyle = '#0284C7';
+                      ctx.font = 'bold 9.5px monospace';
+                      var codePart = (lastGeneratedUrl.split('?p=')[1] || '').slice(0, 12);
+                      if (codePart) ctx.fillText('ID: ' + codePart, 548, 280);
 
                       ctx.fillStyle = '#0F766E';
                       ctx.font = 'bold 15px sans-serif';
@@ -1287,12 +1445,12 @@ jobs:
                       var msg = '🌟 Check out the coding project *"' + projTitle + '"*' +
                           (studentName ? ' created by *' + studentName + '*' : '') +
                           (schoolInfo ? ' (' + schoolInfo + ')' : '') +
-                          ' on TechMedha Block Coding Studio! 🚀\n\n🔗 Play Live Project:\n' + lastGeneratedUrl;
+                          ' on TechMedha Block Coding Studio! 🚀\n\n🔗 Open & Play Live Project:\n' + lastGeneratedUrl;
                       window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
                   };
               }
 
-              // 6. Open Lifetime Student Login & "My Saved Projects" Vault Modal
+              // 8. Open Lifetime Student Login & "My Saved Projects" Vault Modal
               function openLoginModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1322,15 +1480,15 @@ jobs:
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>Student Full Name *</label>' +
-                                      '<input type="text" id="tm-login-name" placeholder="e.g., M.V.S.S. Mokshagna" />' +
+                                      '<input type="text" id="tm-login-name" placeholder="e.g., Aarav Sharma" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>School Name *</label>' +
-                                      '<input type="text" id="tm-login-school" placeholder="e.g., Techmedha High School" />' +
+                                      '<input type="text" id="tm-login-school" placeholder="e.g., Sri Saraswathi Sishu Mandir" />' +
                                   '</div>' +
                                   '<div class="tm-share-field">' +
                                       '<label>Area / State *</label>' +
-                                      '<input type="text" id="tm-login-area" placeholder="e.g., Dilsukhnagar, Hyderabad" />' +
+                                      '<input type="text" id="tm-login-area" placeholder="e.g., Hyderabad, Telangana" />' +
                                   '</div>' +
                                   '<button class="tm-share-action-btn" id="tm-btn-do-login" style="background: linear-gradient(90deg, #0D9488, #0284C7); margin-top: 4px;">' +
                                       '🔓 Open My Lifetime Project Vault' +
@@ -1467,8 +1625,9 @@ jobs:
                                       if (vm && proj.blob) {
                                           proj.blob.arrayBuffer().then(function (buf) {
                                               vm.loadProject(buf).then(function () {
-                                                  setProjectTitleInput(proj.title);
+                                                  activateLoadedProjectWorkspace(vm, proj.title);
                                                   overlay.remove();
+                                                  showToast('✨ Loaded "' + proj.title + '" from your Vault!');
                                               });
                                           });
                                       }
@@ -1510,7 +1669,7 @@ jobs:
                   }
               }
 
-              // 7. Live Diagnostics & Debug Modal (🛠️ Button or Ctrl + Shift + D)
+              // 9. Live Diagnostics & Debug Modal (🛠️ Button or Ctrl + Shift + D)
               function openDebugModal() {
                   var existing = document.getElementById('tm-share-overlay');
                   if (existing) existing.remove();
@@ -1537,10 +1696,10 @@ jobs:
                           '<div class="tm-share-modal-body">' +
                               '<div class="tm-debug-row"><span>Build Version</span><b>' + (window.TM_BUILD_STAMP || 'Custom Build') + '</b></div>' +
                               '<div class="tm-debug-row"><span>Scratch VM Engine</span><span class="' + (vm ? 'tm-debug-ok' : 'tm-debug-warn') + '">' + vmStatus + '</span></div>' +
-                              '<div class="tm-debug-row"><span>QR Code Engine</span><span class="tm-debug-ok">' + qrStatus + '</span></div>' +
+                              '<div class="tm-debug-row"><span>QR & Short-Link Engine</span><span class="tm-debug-ok">' + qrStatus + '</span></div>' +
                               '<div class="tm-debug-row"><span>WebGL Stage Canvas</span><span class="tm-debug-ok">' + stageStatus + '</span></div>' +
                               '<div class="tm-debug-row"><span>Project Title Input</span><span class="tm-debug-ok">' + (titleInput ? titleInput.value : 'Not mounted') + '</span></div>' +
-                              '<div class="tm-debug-row"><span>Storage Worker Redirects</span><span class="tm-debug-ok">' + workerFixCount + ' workers routed</span></div>' +
+                              '<div class="tm-debug-row"><span>Shared URL Resume State</span><span class="tm-debug-ok">' + sharedLoadState + '</span></div>' +
                               '<div class="tm-debug-row"><span>Active Student Vault</span><span class="tm-debug-ok">' + (student ? (student.name + ' [' + student.passcode + ']') : 'Guest Mode') + '</span></div>' +
                               '<div class="tm-share-field">' +
                                   '<label>Recent Runtime Event Log</label>' +
@@ -1582,12 +1741,14 @@ jobs:
                   }
               }
 
-              // 8. Self-Healing Top Header Mount (Survives React Loading Screen Unmount/Remount)
+              // 10. Self-Healing Top Header Mount
               function ensureStudioEnhancements() {
                   if (!document.body) return;
 
                   var titleInput = findTitleInput();
-                  if (titleInput && (titleInput.value === 'Scratch Project' || !titleInput.value)) {
+                  if (titleInput && (titleInput.value === 'Scratch Project' || !titleInput.value) && sharedLoadState !== 'done') {
+                      setProjectTitleInput('TechMedha Project');
+                  } else if (titleInput && titleInput.value === 'Scratch Project' && !cachedSharedMeta) {
                       setProjectTitleInput('TechMedha Project');
                   }
 
@@ -1638,7 +1799,7 @@ jobs:
 
           cat /tmp/tm-build-meta.js /tmp/tm-studio-core.js > /tmp/tm-studio-bundle.js
 
-          # Inject into src/playground/index.ejs BEFORE Webpack runs so HtmlWebpackPlugin compiles it into all pages
+          # Inject into src/playground/index.ejs BEFORE Webpack runs
           cat << 'EOF' > /tmp/patch-ejs.cjs
           const fs = require('fs');
           const ejsPath = 'src/playground/index.ejs';
